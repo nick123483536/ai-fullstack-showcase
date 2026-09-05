@@ -2,6 +2,8 @@ package com.nikhil.jobintelligence.controller;
 
 import java.util.List;
 
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -26,27 +28,30 @@ public class JobController {
 	}
 
 	@PostMapping
-	public Job createJob(@Valid @RequestBody Job job) {
-		return jobService.createJob(job);
+	public ResponseEntity<Job> createJob(@Valid @RequestBody Job job) {
+		Job createdJob = jobService.createJob(job);
+		return ResponseEntity.status(HttpStatus.CREATED).body(createdJob);
 	}
 
 	@GetMapping
-	public List<Job> getAllJobs() {
-		return jobService.getAllJobs();
+	public ResponseEntity<List<Job>> getAllJobs() {
+		return ResponseEntity.ok(jobService.getAllJobs());
 	}
 
 	@GetMapping("/{id}")
-	public Job getJobById(@PathVariable("id") Long id) {
-		return jobService.getJobById(id);
+	public ResponseEntity<Job> getJobById(@PathVariable("id") Long id) {
+		return ResponseEntity.ok(jobService.getJobById(id));
 	}
 
 	@PutMapping("/{id}")
-	public Job updateJob(@PathVariable("id") Long id, @Valid @RequestBody Job job) {
-		return jobService.updateJob(id, job);
+	public ResponseEntity<Job> updateJob(@PathVariable("id") Long id, @Valid @RequestBody Job job) {
+
+		return ResponseEntity.ok(jobService.updateJob(id, job));
 	}
 
 	@DeleteMapping("/{id}")
-	public void deleteJob(@PathVariable("id") Long id) {
+	public ResponseEntity<Void> deleteJob(@PathVariable("id") Long id) {
 		jobService.deleteJob(id);
+		return ResponseEntity.noContent().build();
 	}
 }
