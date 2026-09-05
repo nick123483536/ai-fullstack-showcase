@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.nikhil.jobintelligence.entity.Job;
@@ -53,5 +54,24 @@ public class JobController {
 	public ResponseEntity<Void> deleteJob(@PathVariable("id") Long id) {
 		jobService.deleteJob(id);
 		return ResponseEntity.noContent().build();
+	}
+	
+	@GetMapping("/search/title")
+	public List<Job> searchByTitle(@RequestParam("title") String title) {
+	    return jobService.searchByTitle(title);
+	}
+	@GetMapping("/search/location")
+	public List<Job> searchByLocation(@RequestParam("location") String location) {
+	    return jobService.searchByLocation(location);
+	}
+
+	@GetMapping("/search/company")
+	public List<Job> searchByCompany(@RequestParam("company") String company) {
+	    return jobService.searchByCompany(company);
+	}
+
+	@GetMapping("/search/job-type")
+	public List<Job> searchByJobType(@RequestParam("jobType") String jobType) {
+	    return jobService.searchByJobType(jobType);
 	}
 }

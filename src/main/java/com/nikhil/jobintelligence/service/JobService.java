@@ -46,4 +46,20 @@ public class JobService {
 	public void deleteJob(Long id) {
 		jobRepository.deleteById(id);
 	}
+
+	public List<Job> searchByTitle(String title) {
+		return jobRepository.findByTitleContainingIgnoreCase(title);
+	}
+
+	public List<Job> searchByLocation(String location) {
+		return jobRepository.findByLocationContainingIgnoreCase(location);
+	}
+
+	public List<Job> searchByCompany(String company) {
+		return jobRepository.findByCompanyContainingIgnoreCase(company);
+	}
+
+	public List<Job> searchByJobType(String jobType) {
+		return jobRepository.findByJobTypeContainingIgnoreCase(jobType);
+	}
 }
