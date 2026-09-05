@@ -2,11 +2,15 @@ package com.nikhil.jobintelligence.service;
 
 import java.util.List;
 
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 
 import com.nikhil.jobintelligence.entity.Job;
 import com.nikhil.jobintelligence.exception.JobNotFoundException;
 import com.nikhil.jobintelligence.repository.JobRepository;
+import com.nikhil.jobintelligence.specification.JobSpecification;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 
 @Service
 public class JobService {
@@ -61,5 +65,33 @@ public class JobService {
 
 	public List<Job> searchByJobType(String jobType) {
 		return jobRepository.findByJobTypeContainingIgnoreCase(jobType);
+	}
+	
+	public Page<Job> searchJobs(
+	        String title,
+	        String location,
+	        String company,
+	        String jobType,
+	        Pageable pageable) {
+
+	    Specification<Job> specification = (root, query, criteriaBuilder) -> null;
+
+	    if (title != null && !title.isBlank()) {
+	        specification = specification.and(JobSpecification.hasTitle(title));
+	    }
+
+	    if (location != null && !location.isBlank()) {
+	        specification = specification.and(JobSpecification.hasLocation(location));
+	    }
+
+	    if (company != null && !company.isBlank()) {
+	        specification = specification.and(JobSpecification.hasCompany(company));
+	    }
+
+	    if (jobType != null && !jobType.isBlank()) {
+	        specification = specification.and(JobSpecification.hasJobType(jobType));
+	    }
+
+	    return jobRepository.findAll(specification, pageable);
 	}
 }

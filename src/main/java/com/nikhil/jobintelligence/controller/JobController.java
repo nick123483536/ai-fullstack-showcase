@@ -2,6 +2,8 @@ package com.nikhil.jobintelligence.controller;
 
 import java.util.List;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -55,23 +57,13 @@ public class JobController {
 		jobService.deleteJob(id);
 		return ResponseEntity.noContent().build();
 	}
-	
-	@GetMapping("/search/title")
-	public List<Job> searchByTitle(@RequestParam("title") String title) {
-	    return jobService.searchByTitle(title);
-	}
-	@GetMapping("/search/location")
-	public List<Job> searchByLocation(@RequestParam("location") String location) {
-	    return jobService.searchByLocation(location);
-	}
 
-	@GetMapping("/search/company")
-	public List<Job> searchByCompany(@RequestParam("company") String company) {
-	    return jobService.searchByCompany(company);
-	}
+	@GetMapping("/search")
+	public Page<Job> searchJobs(@RequestParam(value = "title", required = false) String title,
+			@RequestParam(value = "location", required = false) String location,
+			@RequestParam(value = "company", required = false) String company,
+			@RequestParam(value = "jobType", required = false) String jobType, Pageable pageable) {
 
-	@GetMapping("/search/job-type")
-	public List<Job> searchByJobType(@RequestParam("jobType") String jobType) {
-	    return jobService.searchByJobType(jobType);
+		return jobService.searchJobs(title, location, company, jobType, pageable);
 	}
 }
