@@ -1,95 +1,69 @@
 # AI Full Stack Showcase
 
-A collection of full-stack and AI-powered projects demonstrating modern software engineering, backend development, frontend architecture, and application security.
+A collection of full-stack projects demonstrating modern frontend development, backend engineering, API design, and database integration.
 
 ## Projects
 
 ### Job Intelligence
 
-Job Intelligence is a full-stack job discovery platform built with a React and TypeScript frontend and a Java Spring Boot backend. It provides job management, search and filtering, pagination, sorting, authentication, and scheduled ingestion from external job sources.
+Job Intelligence is a job discovery application built with a React and TypeScript frontend and a Java Spring Boot backend. The project brings together a job-search interface, REST APIs, PostgreSQL persistence, and paginated search results.
+
+**Project status:** Active development.
 
 ## Tech Stack
 
 ### Frontend
-- React
+- React 18
 - TypeScript
 - Vite
+- React Router
 - CSS
 - npm
 
 ### Backend
 - Java 17
 - Spring Boot
-- Spring Security
 - Spring Data JPA
 - Hibernate
 - Gradle
 - REST APIs
-- JWT authentication
 
-### Database and Caching
+### Database
 - PostgreSQL
-- Redis
-- Spring Data JPA and Hibernate for persistence
-- Redis caching for frequently accessed data
 
-### Development and API Documentation
-- Docker and Docker Compose for containerized development dependencies
-- Swagger UI / OpenAPI
+### Development Tools
 - Git and GitHub
+- Node.js and npm
 
 ## Features
 
-### 1. Job Management
+### Job Search
+- Search jobs using supported criteria, including title, location, company, and job type
+- Paginated job search results
+- Sort results by posting date
+- View individual job details
+
+### Frontend Application
+- React and TypeScript component-based architecture
+- Client-side routing
+- Login and registration screens
+- Protected frontend routes
+- Job search and job details pages
+- Saved jobs interface
+- Dashboard and analytics pages
+- Settings and source-management screens
+- Typed API layer with error handling
+- Mock-data mode for frontend development and demonstration
+
+> **Authentication note:** The login and registration interfaces are part of the frontend. Working authentication against a backend is not documented as available in the current public version. Mock mode can be used to demonstrate the frontend independently.
+
+### Backend
+- REST API for job management
 - Create, retrieve, update, and delete job listings
 - Retrieve individual jobs by ID
-- PostgreSQL-backed persistence
-- Global exception handling
-
-### 2. Job Search and Discovery
-- Search jobs using supported search criteria
-- Filter by title, location, company, and job type
-- Filter by job source
-- Filter by posting freshness:
-  - Last 1 hour
-  - Last 24 hours
-  - Last 3 days
-  - Last 7 days
-- Paginated search results
-- Newest-first sorting by posting date
-- Job cards with company, location, job type, source, and posting-age information
-
-### 3. Job Ingestion
-- Scheduled job ingestion
-- Remotive API integration for remote job listings
-- IndianAPI integration, subject to API quota and rate limits
-- Existing-job checks using job URLs to help prevent duplicate records
-
-### 4. Authentication and Security
-- User registration and login
-- JWT-based authentication
-- Spring Security integration
-- Password hashing with BCrypt
-- Role-based authorization, according to configured security rules
-
-### 5. Performance
-- Redis caching
-- Cache expiration and eviction
-- PostgreSQL persistence
-- Paginated data retrieval
-
-### 6. Frontend Experience
-- React and TypeScript application
-- Login and registration screens
-- Job search and details pages
-- Saved jobs
-- Dashboard and analytics views
-- Settings and source-management screens
-- Configurable API and mock-data modes
-
-### 7. API Documentation and Error Handling
-- Swagger UI / OpenAPI documentation
-- Health-check endpoint
+- Search jobs using supported filters
+- Pagination and sorting
+- PostgreSQL persistence through Spring Data JPA and Hibernate
 - Centralized exception handling
 
 ## Project Structure
@@ -100,14 +74,10 @@ ai-fullstack-showcase/
 │   ├── main/
 │   │   ├── java/
 │   │   │   └── com/nikhil/jobintelligence/
-│   │   │       ├── config/
 │   │   │       ├── controller/
-│   │   │       ├── dto/
 │   │   │       ├── entity/
 │   │   │       ├── exception/
-│   │   │       ├── ingestion/
 │   │   │       ├── repository/
-│   │   │       ├── security/
 │   │   │       ├── service/
 │   │   │       └── specification/
 │   │   └── resources/
@@ -123,7 +93,9 @@ ai-fullstack-showcase/
 │   │   ├── pages/
 │   │   └── styles/
 │   ├── package.json
-│   └── vite.config.ts
+│   ├── package-lock.json
+│   ├── vite.config.ts
+│   └── README.md
 ├── build.gradle
 ├── settings.gradle
 └── README.md
@@ -131,7 +103,7 @@ ai-fullstack-showcase/
 
 ## API Endpoints
 
-The following table covers the core job management and search endpoints.
+The backend exposes job-management and search endpoints.
 
 | Method | Endpoint | Description |
 |---|---|---|
@@ -141,9 +113,7 @@ The following table covers the core job management and search endpoints.
 | POST | `/api/jobs` | Create a job |
 | PUT | `/api/jobs/{id}` | Update a job |
 | DELETE | `/api/jobs/{id}` | Delete a job |
-| GET | `/api/jobs/search` | Search and filter jobs |
-
-Authentication endpoints and other API routes depend on the current controller configuration. Use Swagger UI to inspect the complete API.
+| GET | `/api/jobs/search` | Search jobs with supported filters, pagination, and sorting |
 
 ### Search Examples
 
@@ -153,32 +123,19 @@ Retrieve the first page with 10 results, sorted by posting date:
 GET /api/jobs/search?page=0&size=10&sort=postedAt,desc
 ```
 
-Filter by source:
+Search using a location and pagination:
 
 ```http
-GET /api/jobs/search?source=INDIAN_API&page=0&size=10&sort=postedAt,desc
+GET /api/jobs/search?location=Kochi&page=0&size=10&sort=postedAt,desc
 ```
 
-Retrieve jobs posted within the last seven days:
-
-```http
-GET /api/jobs/search?postedWithin=7d&page=0&size=10&sort=postedAt,desc
-```
-
-Combine supported filters:
-
-```http
-GET /api/jobs/search?location=Kochi&postedWithin=7d&page=0&size=10&sort=postedAt,desc
-```
-
-Check Swagger UI for the complete set of parameters and supported values.
+Combine supported search parameters as needed. Confirm exact parameter names and behavior against the current backend implementation.
 
 ## Prerequisites
 
-- Java 17 or a compatible supported JDK
+- Java 17
 - Node.js and npm
 - PostgreSQL
-- Docker Desktop, if using the Docker-based Redis setup
 - Git
 
 ## Local Setup
@@ -192,27 +149,17 @@ cd ai-fullstack-showcase
 
 ### 2. Configure PostgreSQL
 
-Create the application database:
+Create the database:
 
 ```sql
 CREATE DATABASE job_intelligence;
 ```
 
-Configure the database connection using the application's existing configuration or environment variables.
+Configure the database connection using the backend's local configuration.
 
 Keep database credentials and other secrets out of version control.
 
-### 3. Start Redis
-
-If your Docker Compose configuration defines the Redis service, start it from the directory containing the Compose file:
-
-```bash
-docker compose up -d
-```
-
-Check the Compose configuration for the actual service names and ports. Start PostgreSQL separately if it is not included in that configuration.
-
-### 4. Start the Backend
+### 3. Start the Backend
 
 From the repository root, run the Gradle wrapper.
 
@@ -228,9 +175,9 @@ From the repository root, run the Gradle wrapper.
 ./gradlew bootRun
 ```
 
-Make sure PostgreSQL, Redis, and the required application configuration are available.
+Ensure PostgreSQL is running and the backend database configuration is correct.
 
-### 5. Start the Frontend
+### 4. Start the Frontend
 
 Open a second terminal:
 
@@ -240,6 +187,45 @@ npm install
 npm run dev
 ```
 
-The Vite development server will display its local URL in the terminal.
+Vite will print the local development URL in the terminal.
 
-The frontend includes a `.env.example` file for its configuration. Review it and configure the API URL and other
+### 5. Configure the Frontend
+
+Review `frontend/.env.example` for the supported frontend configuration options.
+
+The frontend supports mock-data mode for development and demonstration. To use the live backend, configure the API connection and disable mock mode according to the example configuration.
+
+## Build and Test
+
+### Backend Tests
+
+Run from the repository root:
+
+```powershell
+.\gradlew.bat test
+```
+
+### Frontend Production Build
+
+Run from the frontend directory:
+
+```powershell
+npm run build
+```
+
+## Planned Improvements
+
+The following features are not documented as implemented in the current public version and may be added as development continues:
+
+- Backend authentication with JWT and password hashing
+- Role-based API authorization
+- Redis caching
+- Docker Compose-based development environment
+- Swagger/OpenAPI documentation
+- Scheduled ingestion from external job sources
+- Source-based and posting-freshness filters in the backend
+- Additional automated tests and deployment improvements
+
+## Project Goals
+
+The goal of Job Intelligence is to evolve into a reliable job discovery platform with a maintainable frontend, a secure backend, efficient data access, and integrations with external job sources.
