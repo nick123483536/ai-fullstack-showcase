@@ -1,0 +1,76 @@
+// Sample data used when VITE_USE_MOCK=true, so the UI can run without the backend.
+import { ApiError } from './client';
+import type { Job, JobSearchParams, Page } from './types';
+import { POSTED_MINUTES } from '../lib/format';
+
+const COMPANIES: [string, string][] = [
+  ['Razorpay', 'Bangalore, India'], ['Zerodha', 'Bangalore, India'], ['Swiggy', 'Bangalore, India'], ['Freshworks', 'Chennai, India'],
+  ['CRED', 'Bangalore, India'], ['Postman', 'Bangalore, India'], ['PhonePe', 'Pune, India'], ['Meesho', 'Bangalore, India'],
+  ['Zoho', 'Chennai, India'], ['Groww', 'Bangalore, India'], ['BrowserStack', 'Mumbai, India'], ['Juspay', 'Bangalore, India'],
+  ['Chargebee', 'Chennai, India'], ['Dream11', 'Mumbai, India'], ['Thoughtworks', 'Pune, India'], ['InMobi', 'Bangalore, India'],
+  ['Atlassian', 'Remote, India'], ['Hasura', 'Remote, India'], ['Sarvam AI', 'Bangalore, India'], ['Microsoft', 'Hyderabad, India'],
+  ['Uber', 'Hyderabad, India'], ['Paytm', 'Noida, India'],
+];
+const TITLES = [
+  'Senior Backend Engineer', 'Full Stack Software Engineer', 'Senior Full Stack Engineer', 'Platform Engineer', 'Staff Software Engineer, Payments',
+  'Frontend Engineer (React)', 'Site Reliability Engineer', 'Data Engineer', 'Machine Learning Engineer', 'Software Engineer II',
+  'Java Developer (Spring Boot)', 'Engineering Manager, Backend', 'DevOps Engineer', 'Backend Engineer (Go)', 'Android Engineer',
+  'Software Development Engineer Intern', 'Senior Data Scientist', 'Security Engineer', 'QA Automation Engineer', 'Product Engineer',
+];
+
+const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '');
+
+/** Formats a Date the way Spring serializes LocalDateTime (local time, no zone). */
+function toLocalDateTime(d: Date) {
+  const p = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
+}
+
+const NOW = Date.now();
+const JOBS: Job[] = Array.from({ length: 50 }, (_, i) => {
+  const [company, location] = COMPANIES[(i * 7 + 3) % COMPANIES.length];
+  const title = TITLES[(i * 3 + 1) % TITLES.length];
+  const jobType = /Intern/.test(title) ? 'Internship' : i % 9 === 4 ? 'Contract' : i % 13 === 7 ? 'Part Time' : 'Full Time';
+  const minutes = Math.round(6 + i * 35 + i * i * 2.2);
+  const id = 140 - i;
+  return {
+    id, title, company, location, jobType,
+    source: 'INDIAN_API',
+    jobUrl: `https://careers.${slug(company)}.com/jobs/${id}`,
+    postedAt: toLocalDateTime(new Date(NOW - minutes * 60000)),
+  };
+});
+
+const delay = <T>(value: T, ms = 450) => new Promise<T>((resolve) => setTimeout(() => resolve(value), ms));
+
+function fakeJwt(username: string) {
+  const enc = (o: object) => btoa(JSON.stringify(o)).replace(/=+$/, '');
+  return `${enc({ alg: 'none' })}.${enc({ sub: username, exp: Math.floor(Date.now() / 1000) + 86400 })}.mock`;
+}
+
+export const mockApi = {
+  login: (username: string) => delay({ token: fakeJwt(username) }, 600),
+  register: () => delay(undefined, 700),
+  getAllJobs: () => delay([...JOBS]),
+  getJob: (id: number) => {
+    const job = JOBS.find((j) => j.id === id);
+    return job ? delay(job, 250) : Promise.reject(new ApiError(404, 'Job not found'));
+  },
+  searchJobs: (p: JobSearchParams): Promise<Page<Job>> => {
+    const has = (field: string, q: string) => !q || field.toLowerCase().includes(q.toLowerCase());
+    const within = POSTED_MINUTES[p.postedWithin];
+    const results = JOBS.filter((j) =>
+      has(j.title, p.title.trim()) && has(j.location, p.location) && has(j.company, p.company) &&
+      has(j.jobType, p.jobType) && (!p.source || j.source === p.source) &&
+      (!within || (Date.now() - new Date(j.postedAt!).getTime()) / 60000 <= within));
+    const start = p.page * p.size;
+    return delay({
+      content: results.slice(start, start + p.size),
+      totalElements: results.length,
+      totalPages: Math.max(1, Math.ceil(results.length / p.size)),
+      number: p.page,
+      size: p.size,
+    }, 550);
+  },
+  ingestFromSource: () => delay(JOBS.slice(0, 50), 1500),
+};
