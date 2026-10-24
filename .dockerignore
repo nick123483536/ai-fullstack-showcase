@@ -1,0 +1,7 @@
+.gradle
+.settings
+**/node_modules
+build
+bin
+.env
+frontend
