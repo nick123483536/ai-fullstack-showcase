@@ -15,6 +15,8 @@ export const POSTED_MINUTES: Record<PostedWithin, number | undefined> = {
 export const DEFAULT_JOB_TYPES = ['Full Time', 'Part Time', 'Contract', 'Internship'];
 
 export const SOURCE_LABELS: Record<string, string> = {
+  ADZUNA: 'Adzuna',
+  JOBICY: 'Jobicy',
   INDIAN_API: 'IndianAPI',
   LINKEDIN: 'LinkedIn',
   INDEED: 'Indeed',
@@ -50,10 +52,28 @@ export function relativeTime(m: number | null) {
 
 export const jobPosted = (job: Job) => relativeTime(jobMinutes(job));
 
-/** Posted in the last 3 hours. */
-export function isNewJob(job: Job) {
+/** Posted in the last 24 hours: the freshness the product is built around. */
+export function isFreshJob(job: Job) {
   const m = jobMinutes(job);
-  return m !== null && m < 180;
+  return m !== null && m < 1440;
+}
+
+export const formatCount = (n: number) => n.toLocaleString('en-IN');
+
+export function formatClock(t: number) {
+  return new Date(t).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: false });
+}
+
+/** "2026-10-24 09:14", for rows that are compared. */
+export function formatIso(t: number) {
+  const d = new Date(t);
+  const p = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
+/** Sources in the order of their job count, with labels. */
+export function sourceCounts(jobs: Job[]) {
+  return countBy(jobs, (j) => j.source).map(([key, count]) => ({ key, label: sourceLabel(key), count }));
 }
 
 export function formatDateTime(t: number) {
@@ -88,4 +108,12 @@ export function sortByPostedDesc(jobs: Job[]) {
 
 export function formatDuration(ms: number) {
   return `${(ms / 1000).toFixed(1)}s`;
+}
+
+/** One spelling per job type: sources write "Full Time", "full-time", "Full Time Work" or "REMOTE". */
+export function typeLabel(t: string) {
+  const k = t.trim().toLowerCase().replace(/[_-]+/g, ' ').replace(/\s+work$/, '').replace(/\s+/g, ' ');
+  const known: Record<string, string> = { 'full time': 'Full time', fulltime: 'Full time', 'part time': 'Part time', parttime: 'Part time', contract: 'Contract', contractor: 'Contract', internship: 'Internship', intern: 'Internship', remote: 'Remote', freelance: 'Freelance', temporary: 'Temporary' };
+  if (known[k]) return known[k];
+  return k ? k.charAt(0).toUpperCase() + k.slice(1) : '—';
 }

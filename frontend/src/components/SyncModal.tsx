@@ -1,9 +1,11 @@
 import { useEffect, useRef } from 'react';
+import { useAuth } from '../context/AuthContext';
 import { useWorkspace } from '../context/WorkspaceContext';
 import { Icon } from './Icon';
 
 export function SyncModal() {
   const { syncModalOpen, setSyncModalOpen, runSync } = useWorkspace();
+  const { isAdmin } = useAuth();
   const confirmRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
@@ -20,7 +22,7 @@ export function SyncModal() {
     };
   }, [syncModalOpen, setSyncModalOpen]);
 
-  if (!syncModalOpen) return null;
+  if (!syncModalOpen || !isAdmin) return null;
 
   const close = () => setSyncModalOpen(false);
 
@@ -29,19 +31,17 @@ export function SyncModal() {
       <div className="modal-backdrop" onClick={close} />
       <div className="modal-panel">
         <div className="modal-body">
-          <div className="modal-icon"><Icon name="refresh" size={17} /></div>
-          <div>
-            <h2 id="ji-modal-title" className="modal-title">Run ingestion?</h2>
-            <p className="modal-text">
-              Fetches the latest listings from IndianAPI through the ingestion service. This usually takes a few seconds.
-            </p>
-          </div>
-          <code className="modal-code">GET /api/ingestion/source</code>
+          <span className="modal-icon"><Icon name="refresh" size={20} /></span>
+          <h2 id="ji-modal-title" className="modal-title">Sync sources now?</h2>
+          <p className="modal-text">
+            Pulls the latest listings from your connected sources instead of waiting for the next hourly run. It usually takes a few seconds.
+          </p>
         </div>
         <div className="modal-foot">
-          <button type="button" className="btn btn-md" onClick={close}>Cancel</button>
-          <button type="button" ref={confirmRef} className="btn btn-md btn-primary" onClick={() => void runSync()}>
-            Run ingestion
+          <button type="button" className="btn" onClick={close}>Cancel</button>
+          <button type="button" ref={confirmRef} className="btn btn-primary" onClick={() => void runSync()}>
+            <Icon name="refresh" size={16} />
+            Sync sources
           </button>
         </div>
       </div>

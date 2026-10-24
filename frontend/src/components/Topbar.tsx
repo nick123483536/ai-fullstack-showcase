@@ -1,57 +1,58 @@
-import { useState, type FormEvent } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useLocation } from 'react-router-dom';
 import { useTheme } from '../context/ThemeContext';
-import { useToast } from '../context/ToastContext';
+import { useWorkspace } from '../context/WorkspaceContext';
+import { formatClock, minutesSince, relativeTime } from '../lib/format';
 import { Icon } from './Icon';
 
 const TITLES: [RegExp, string][] = [
-  [/^\/$/, 'Dashboard'],
-  [/^\/jobs\/[^/]+/, 'Job details'],
-  [/^\/jobs/, 'Jobs'],
-  [/^\/saved/, 'Saved Jobs'],
+  [/^\/$/, 'Today'],
+  [/^\/jobs\/[^/]+/, 'Job'],
+  [/^\/jobs/, 'All jobs'],
+  [/^\/saved/, 'Saved'],
   [/^\/sources/, 'Sources'],
   [/^\/analytics/, 'Analytics'],
   [/^\/settings/, 'Settings'],
 ];
 
-export function Topbar({ isMobile, onOpenDrawer }: { isMobile: boolean; onOpenDrawer: () => void }) {
+interface TopbarProps {
+  folded: boolean;
+  onToggleSidebar: () => void;
+  onSearch: () => void;
+}
+
+export function Topbar({ folded, onToggleSidebar, onSearch }: TopbarProps) {
   const { pathname } = useLocation();
-  const navigate = useNavigate();
   const { isDark, setTheme } = useTheme();
-  const toast = useToast();
-  const [query, setQuery] = useState('');
+  const { syncing, lastSync } = useWorkspace();
   const title = TITLES.find(([re]) => re.test(pathname))?.[1] ?? '';
   const themeLabel = isDark ? 'Switch to light theme' : 'Switch to dark theme';
 
-  const onSearch = (e: FormEvent) => {
-    e.preventDefault();
-    const q = query.trim();
-    navigate(q ? `/jobs?title=${encodeURIComponent(q)}` : '/jobs');
-    setQuery('');
-  };
+  const status = syncing ? 'Syncing sources…'
+    : lastSync ? `Synced ${relativeTime(minutesSince(lastSync))}`
+      : 'Auto-sync every hour';
 
   return (
     <header className="topbar">
-      {isMobile && (
-        <button type="button" className="icon-btn" onClick={onOpenDrawer} aria-label="Open navigation">
-          <Icon name="menu" />
-        </button>
-      )}
-      <div className="crumbs">
-        <span className="crumb-root">Workspace</span>
-        <span className="crumb-sep">/</span>
-        <span className="crumb-current">{title}</span>
-      </div>
-      <div className="topbar-spacer" />
-      <form role="search" className="topbar-search" onSubmit={onSearch}>
-        <Icon name="search" size={15} />
-        <input aria-label="Quick search jobs" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search jobs…" />
-      </form>
-      <button type="button" className="icon-btn" onClick={() => setTheme(isDark ? 'light' : 'dark')} aria-label={themeLabel} title={themeLabel}>
-        <Icon name={isDark ? 'sun' : 'moon'} />
+      <button type="button" className="icon-btn" onClick={onToggleSidebar} aria-label={folded ? 'Open navigation' : 'Collapse sidebar'}>
+        <Icon name={folded ? 'menu' : 'panel'} size={18} />
       </button>
-      <button type="button" className="icon-btn" onClick={() => toast('Notification delivery is coming soon')} aria-label="Notifications">
-        <Icon name="bell" />
+      <span className="vsep" />
+      <div className="crumbs">
+        <span>Workspace</span>
+        <Icon name="chevRight" size={14} />
+        <b>{title}</b>
+      </div>
+      <button type="button" className="cmdk-btn" onClick={onSearch}>
+        <Icon name="search" size={16} />
+        <span className="truncate">Search roles, companies, commands</span>
+        <kbd>Ctrl K</kbd>
+      </button>
+      <span className="live-chip" title={lastSync ? `Last sync from this browser at ${formatClock(lastSync)}` : undefined}>
+        {syncing ? <span className="spinner" style={{ width: 10, height: 10 }} /> : <span className="ping" />}
+        {status}
+      </span>
+      <button type="button" className="icon-btn" onClick={() => setTheme(isDark ? 'light' : 'dark')} aria-label={themeLabel} title={themeLabel}>
+        <Icon name={isDark ? 'sun' : 'moon'} size={18} />
       </button>
     </header>
   );

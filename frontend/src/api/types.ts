@@ -41,3 +41,11 @@ export interface JobSearchParams extends JobFilters {
 export interface AuthResponse {
   token: string;
 }
+
+export type Role = 'ADMIN' | 'USER';
+
+/** Mirrors com.nikhil.jobintelligence.dto.CurrentUserResponse (GET /api/auth/me). */
+export interface CurrentUser {
+  username: string;
+  role: Role;
+}

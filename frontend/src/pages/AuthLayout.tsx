@@ -1,15 +1,12 @@
 import type { ReactNode } from 'react';
 import { Icon, type IconName } from '../components/Icon';
-import { Brand, Pill } from '../components/ui';
+import { Brand } from '../components/ui';
 
-const FEATURES: { icon: IconName; title: string; desc: string; soon?: boolean }[] = [
-  { icon: 'layers', title: 'Unified job discovery', desc: 'Listings from multiple providers, normalized into one schema.' },
-  { icon: 'filter', title: 'Smart filtering', desc: 'Search by title, company, location, job type and recency.' },
-  { icon: 'sparkles', title: 'AI-powered insights', desc: 'Resume matching and skill-gap analysis.', soon: true },
-  { icon: 'db', title: 'Multiple job sources', desc: 'IndianAPI today — LinkedIn, Indeed and Naukri planned.' },
+const POINTS: [IconName, string, string][] = [
+  ['sparkles', 'Fresh first', 'Roles from the last 24 hours stand out, so you apply while the list is short.'],
+  ['layers', 'One list', 'Adzuna, Jobicy and Remotive listings in one place, searchable by title, city, company and type.'],
+  ['bookmark', 'Kept for you', 'Save roles and come back to them before they close.'],
 ];
-
-const PIPELINE = ['Sources', 'Ingestion', 'Normalization', 'Search', 'Intelligence'];
 
 export function AuthLayout({ children }: { children: ReactNode }) {
   return (
@@ -24,33 +21,18 @@ export function AuthLayout({ children }: { children: ReactNode }) {
 
       <aside className="auth-panel">
         <div className="auth-panel-inner">
-          <span className="eyebrow">Job data platform</span>
-          <h2>Find better opportunities with intelligence.</h2>
+          <h2>Indian tech jobs, the hour they're posted.</h2>
           <p className="auth-panel-lead">
-            Collect, search and — soon — analyze roles from every source you care about, in one workspace.
+            Job Intelligence pulls new listings from job APIs every hour and shows you what's fresh, so you apply early instead of late.
           </p>
-          <div className="feature-list">
-            {FEATURES.map((f) => (
-              <div key={f.title} className="feature">
-                <div className="feature-icon"><Icon name={f.icon} /></div>
-                <div className="stack" style={{ gap: 2 }}>
-                  <div className="feature-title">
-                    {f.title}
-                    {f.soon && <Pill size="xs">Coming soon</Pill>}
-                  </div>
-                  <div className="feature-desc">{f.desc}</div>
-                </div>
-              </div>
+          <ul className="auth-points stagger">
+            {POINTS.map(([icon, title, desc]) => (
+              <li key={title} className="auth-point">
+                <span className="ico"><Icon name={icon} size={18} /></span>
+                <div><b>{title}</b><span>{desc}</span></div>
+              </li>
             ))}
-          </div>
-          <div className="pipeline-mini">
-            {PIPELINE.map((step, i) => (
-              <span key={step} style={{ display: 'contents' }}>
-                <span className={`step${i === PIPELINE.length - 1 ? ' is-planned' : ''}`}>{step}</span>
-                {i < PIPELINE.length - 1 && <span aria-hidden="true">→</span>}
-              </span>
-            ))}
-          </div>
+          </ul>
         </div>
       </aside>
     </div>

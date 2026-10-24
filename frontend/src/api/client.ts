@@ -30,6 +30,8 @@ interface RequestOptions {
   body?: unknown;
   /** Attach the bearer token. Defaults to true. */
   auth?: boolean;
+  /** Sign out when the response is 401. Defaults to true; off for calls whose failure shouldn't end the session. */
+  signOutOn401?: boolean;
   signal?: AbortSignal;
 }
 
@@ -51,7 +53,7 @@ function defaultMessage(status: number) {
 }
 
 export async function apiRequest<T>(path: string, options: RequestOptions = {}): Promise<T> {
-  const { method = 'GET', body, auth = true, signal } = options;
+  const { method = 'GET', body, auth = true, signOutOn401 = true, signal } = options;
   const headers: Record<string, string> = { Accept: 'application/json' };
   if (body !== undefined) headers['Content-Type'] = 'application/json';
   if (auth && authToken) headers.Authorization = `Bearer ${authToken}`;
@@ -72,7 +74,7 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
   const data = parseBody(await res.text());
 
   if (!res.ok) {
-    if (res.status === 401 && auth) unauthorizedHandler?.();
+    if (res.status === 401 && auth && signOutOn401) unauthorizedHandler?.();
     let message = defaultMessage(res.status);
     let fieldErrors: Record<string, string> | undefined;
     if (data && typeof data === 'object') {

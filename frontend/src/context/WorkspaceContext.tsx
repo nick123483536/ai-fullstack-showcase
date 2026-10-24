@@ -69,11 +69,11 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     try {
       const ingested = await api.ingestFromSource();
       record = { at: started, fetched: ingested.length, durationMs: Date.now() - started, ok: true };
-      toast(`Ingestion complete · ${ingested.length} jobs fetched from IndianAPI`);
+      toast(`Sync complete · ${ingested.length} roles fetched`);
       reloadJobs();
     } catch (err) {
       record = { at: started, fetched: 0, durationMs: Date.now() - started, ok: false };
-      toast(`Ingestion failed: ${errorMessage(err)}`, 'error');
+      toast(`Sync failed: ${errorMessage(err)}`, 'error');
     }
     setSyncHistory((h) => {
       const next = [record, ...h].slice(0, 10);

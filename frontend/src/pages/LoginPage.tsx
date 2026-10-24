@@ -74,7 +74,7 @@ export function LoginPage() {
       </form>
       <p className="auth-switch">
         Don't have an account?{' '}
-        <button type="button" className="link-btn" onClick={() => navigate('/register')}>Create one</button>
+        <button type="button" className="text-btn" onClick={() => navigate('/register')}>Create one</button>
       </p>
     </AuthLayout>
   );

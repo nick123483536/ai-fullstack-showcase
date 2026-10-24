@@ -69,7 +69,7 @@ export function RegisterPage() {
       </form>
       <p className="auth-switch">
         Already have an account?{' '}
-        <button type="button" className="link-btn" onClick={() => navigate('/login')}>Sign in</button>
+        <button type="button" className="text-btn" onClick={() => navigate('/login')}>Sign in</button>
       </p>
     </AuthLayout>
   );

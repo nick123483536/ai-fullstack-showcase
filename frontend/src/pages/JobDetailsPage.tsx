@@ -4,33 +4,54 @@ import { getJob } from '../api';
 import { ApiError, errorMessage, isAbortError } from '../api/client';
 import type { Job } from '../api/types';
 import { Icon, type IconName } from '../components/Icon';
-import { EmptyState, ErrorState, Pill, SourceTag, StatusBadge } from '../components/ui';
+import { PostedTime } from '../components/JobCard';
+import { EmptyBlock, ErrorLine, LogoTile, Pill } from '../components/ui';
+import { useReviewed } from '../context/ReviewedContext';
 import { useSavedJobs } from '../context/SavedJobsContext';
 import { useWorkspace } from '../context/WorkspaceContext';
-import { city, formatDateTime, initials, jobPosted, minutesSince, postedTime, relativeTime, sortByPostedDesc, sourceLabel } from '../lib/format';
+import { city, formatIso, isFreshJob, jobPosted, postedTime, sortByPostedDesc, sourceLabel, typeLabel } from '../lib/format';
 
-const AI_FEATURES: { icon: IconName; title: string; desc: string }[] = [
-  { icon: 'target', title: 'Resume match', desc: 'Compare this role with your resume.' },
-  { icon: 'gap', title: 'Skill gap analysis', desc: 'Skills to strengthen for this role.' },
-  { icon: 'message', title: 'Interview preparation', desc: 'Likely topics and questions.' },
-  { icon: 'chart', title: 'Job fit analysis', desc: 'How this role aligns with your goals.' },
+const PLANNED: [IconName, string, string][] = [
+  ['target', 'Resume match', 'How this role lines up with your resume.'],
+  ['sparkles', 'Skill gaps', 'What to strengthen before you apply.'],
+  ['message', 'Interview topics', 'Likely questions for this role and company.'],
 ];
 
 type State = { status: 'loading' } | { status: 'ready'; job: Job } | { status: 'notFound' } | { status: 'error'; message: string };
 
-function BackLink() {
+function Crumb({ title }: { title?: string }) {
   return (
-    <Link to="/jobs" className="link-btn back-link">
-      <Icon name="arrowLeft" size={14} strokeWidth={2} />Back to jobs
-    </Link>
+    <div className="crumb">
+      <Link to="/jobs">All jobs</Link>
+      {title && <><Icon name="chevRight" size={13} /><span className="truncate">{title}</span></>}
+    </div>
+  );
+}
+
+function RoleList({ jobs, sub }: { jobs: Job[]; sub: (j: Job) => string }) {
+  return (
+    <ul className="mini-list stagger">
+      {jobs.map((j) => (
+        <li key={j.id}>
+          <Link to={`/jobs/${j.id}`}>
+            <LogoTile name={j.company} size={32} />
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <span className="mini-title truncate">{j.title}</span>
+              <div className="mini-sub"><span className="truncate">{sub(j)}</span><PostedTime job={j} /></div>
+            </div>
+          </Link>
+        </li>
+      ))}
+    </ul>
   );
 }
 
 export function JobDetailsPage() {
   const { id } = useParams();
   const jobId = Number(id);
-  const { jobs: allJobs, lastSync } = useWorkspace();
+  const { jobs: allJobs } = useWorkspace();
   const { isSaved, toggleSave } = useSavedJobs();
+  const { markReviewed } = useReviewed();
   const [state, setState] = useState<State>({ status: 'loading' });
   const [retryKey, setRetryKey] = useState(0);
   const [copied, setCopied] = useState(false);
@@ -44,47 +65,49 @@ export function JobDetailsPage() {
     setState({ status: 'loading' });
     setCopied(false);
     getJob(jobId, ctrl.signal)
-      .then((job) => setState({ status: 'ready', job }))
+      .then((job) => {
+        setState({ status: 'ready', job });
+        markReviewed(job.id);
+      })
       .catch((err) => {
         if (isAbortError(err)) return;
         if (err instanceof ApiError && err.status === 404) setState({ status: 'notFound' });
         else setState({ status: 'error', message: errorMessage(err) });
       });
     return () => ctrl.abort();
-  }, [jobId, retryKey]);
+  }, [jobId, retryKey, markReviewed]);
 
-  if (state.status === 'loading') {
+  if (state.status !== 'ready') {
     return (
-      <div className="page" style={{ gap: 16 }} aria-busy="true">
-        <BackLink />
-        <div className="card job-hero">
-          <div className="skeleton-bar" style={{ width: 52, height: 52, borderRadius: 10 }} />
-          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 10 }}>
-            <div className="skeleton-bar" style={{ height: 20, width: '50%' }} />
-            <div className="skeleton-bar" style={{ height: 12, width: '25%' }} />
-            <div className="skeleton-bar" style={{ height: 12, width: '60%' }} />
+      <div className="page">
+        <div className="page-head">
+          <div>
+            <Crumb />
+            {state.status === 'loading' && (
+              <div aria-busy="true" style={{ display: 'flex', gap: 18, alignItems: 'center', paddingTop: 4 }}>
+                <span className="skeleton-bar" style={{ width: 60, height: 60, borderRadius: 16 }} />
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  <span className="skeleton-bar" style={{ height: 26, width: '45%' }} />
+                  <span className="skeleton-bar" style={{ height: 14, width: '30%' }} />
+                </div>
+              </div>
+            )}
+            {state.status === 'notFound' && <h1 className="page-title">Job not found</h1>}
+            {state.status === 'error' && <h1 className="page-title">Job</h1>}
           </div>
         </div>
-      </div>
-    );
-  }
-
-  if (state.status === 'notFound') {
-    return (
-      <div className="page" style={{ gap: 16 }}>
-        <BackLink />
-        <EmptyState icon="search" title="Job not found" action={<Link to="/jobs" className="btn btn-md">Browse jobs</Link>}>
-          This listing may have been removed from the database.
-        </EmptyState>
-      </div>
-    );
-  }
-
-  if (state.status === 'error') {
-    return (
-      <div className="page" style={{ gap: 16 }}>
-        <BackLink />
-        <ErrorState title="Unable to load this job." message={state.message} onRetry={() => setRetryKey((k) => k + 1)} />
+        {state.status === 'notFound' && (
+          <section className="panel">
+            <EmptyBlock icon="search" title="This listing is no longer stored" action={<Link to="/jobs" className="btn">Browse jobs</Link>}>
+              It may have been removed from the database since you opened the link.
+            </EmptyBlock>
+          </section>
+        )}
+        {state.status === 'error' && (
+          <section className="panel">
+            <ErrorLine message={`Couldn't load this job. ${state.message}`} onRetry={() => setRetryKey((k) => k + 1)} />
+          </section>
+        )}
       </div>
     );
   }
@@ -93,20 +116,12 @@ export function JobDetailsPage() {
   const saved = isSaved(job.id);
   const posted = postedTime(job);
   const jobCity = city(job.location);
-  let similar = allJobs.filter((j) => j.id !== job.id && j.jobType === job.jobType && city(j.location) === jobCity);
-  if (similar.length < 3) {
-    similar = similar.concat(allJobs.filter((j) => j.id !== job.id && j.jobType === job.jobType && !similar.includes(j)));
-  }
-  similar = sortByPostedDesc(similar).slice(0, 4);
-
-  const fields: { k: string; v: string; mono?: boolean }[] = [
-    { k: 'Company', v: job.company },
-    { k: 'Location', v: job.location },
-    { k: 'Job type', v: job.jobType },
-    { k: 'Source', v: job.source, mono: true },
-    { k: 'Posted date', v: posted === null ? 'Unknown' : `${formatDateTime(posted)} · ${jobPosted(job)}` },
-    { k: 'Job ID', v: `#${job.id}`, mono: true },
-  ];
+  const others = allJobs.filter((j) => j.id !== job.id);
+  const atCompany = sortByPostedDesc(others.filter((j) => j.company === job.company)).slice(0, 3);
+  let similar = others.filter((j) => j.jobType === job.jobType && city(j.location) === jobCity && j.company !== job.company);
+  if (similar.length < 4) similar = similar.concat(others.filter((j) => j.jobType === job.jobType && j.company !== job.company && !similar.includes(j)));
+  similar = sortByPostedDesc(similar).slice(0, 5);
+  const fresh = isFreshJob(job);
 
   const copyUrl = async () => {
     try {
@@ -118,113 +133,98 @@ export function JobDetailsPage() {
   };
 
   return (
-    <div className="page" style={{ gap: 16 }}>
-      <BackLink />
-
-      <section className="card job-hero">
-        <div className="tile tile-52" aria-hidden="true">{initials(job.company)}</div>
-        <div className="job-hero-body">
-          <h1 className="page-title">{job.title}</h1>
-          <div className="job-hero-company">{job.company}</div>
-          <div className="job-hero-meta">
-            <span className="meta-item"><Icon name="pin" size={14} />{job.location}</span>
-            <span className="meta-item"><Icon name="briefcase" size={14} />{job.jobType}</span>
-            <span className="meta-item"><Icon name="clock" size={14} />Posted {jobPosted(job)}</span>
-            <SourceTag>{job.source}</SourceTag>
+    <div className="page">
+      <div className="page-head">
+        <div>
+          <Crumb title={job.title} />
+          <div className="detail-head">
+            <LogoTile name={job.company} size={60} />
+            <div style={{ minWidth: 0 }}>
+              <h1 className="page-title">{job.title}</h1>
+              <div className="detail-meta">
+                <span className="pill tone-neutral"><Icon name="building" size={13} />{job.company}</span>
+                <span className="outline-pill"><Icon name="pin" size={13} style={{ marginRight: 5 }} />{job.location}</span>
+                <span className="outline-pill">{typeLabel(job.jobType)}</span>
+                {fresh ? <Pill tone="brand"><span className="ping" />Posted {jobPosted(job)}</Pill> : <span className="outline-pill">Posted {jobPosted(job)}</span>}
+              </div>
+            </div>
           </div>
         </div>
-        <div className="actions">
-          <button
-            type="button"
-            className="btn save-btn"
-            style={{ height: 38 }}
-            aria-pressed={saved}
-            onClick={() => toggleSave(job.id)}
-          >
-            <Icon name="bookmark" size={15} filled={saved} />{saved ? 'Saved' : 'Save job'}
+        <div className="page-actions">
+          <button type="button" className="btn" aria-pressed={saved} onClick={() => toggleSave(job.id)}>
+            <Icon name="bookmark" size={16} filled={saved} style={saved ? { color: 'var(--primary)' } : undefined} />{saved ? 'Saved' : 'Save'}
           </button>
-          <a href={job.jobUrl} target="_blank" rel="noopener noreferrer" className="btn btn-primary" style={{ height: 38, padding: '0 16px' }}>
-            Apply to job<Icon name="external" size={14} strokeWidth={2} />
+          <a href={job.jobUrl} target="_blank" rel="noopener noreferrer" className="btn btn-primary">
+            Apply on company site<Icon name="external" size={15} />
           </a>
         </div>
-      </section>
+      </div>
 
-      <div className="two-col">
-        <div className="side-col">
-          <section aria-labelledby="ji-ov" className="card">
-            <div className="card-head bordered"><h2 id="ji-ov" className="card-title">Overview</h2></div>
-            <dl className="dl-grid">
-              {fields.map((f) => (
-                <div key={f.k} style={{ minWidth: 0 }}>
-                  <dt>{f.k}</dt>
-                  <dd className={f.mono ? 'mono' : undefined}>{f.v}</dd>
+      <div className="detail-grid rise" style={{ animationDelay: '0.1s' }}>
+        <div className="detail-side">
+          <section aria-labelledby="ji-listing" className="panel">
+            <div className="panel-head">
+              <div>
+                <h2 id="ji-listing" className="panel-title">Listing</h2>
+                <div className="panel-sub">
+                  {fresh ? 'Posted in the last 24 hours, so you are early.' : `Posted ${jobPosted(job)}.`} The full description is on the company's posting.
                 </div>
-              ))}
-            </dl>
-            <div className="url-box">
-              <span className="card-sub" style={{ fontSize: 12 }}>External job URL</span>
+              </div>
+            </div>
+            <div className="panel-body">
+              <dl className="kv">
+                <dt>Company</dt><dd>{job.company}</dd>
+                <dt>Location</dt><dd>{job.location}</dd>
+                <dt>Job type</dt><dd>{typeLabel(job.jobType)}</dd>
+                <dt>Source</dt><dd>{sourceLabel(job.source)}</dd>
+                <dt>Posted</dt><dd className="num">{posted === null ? '—' : `${formatIso(posted)} · ${jobPosted(job)}`}</dd>
+                <dt>Job ID</dt><dd className="mono">{job.id}</dd>
+              </dl>
               <div className="url-row">
                 <code title={job.jobUrl}>{job.jobUrl}</code>
-                <button type="button" className="btn btn-md" style={{ padding: '0 12px', fontSize: 13, gap: 6 }} onClick={copyUrl}>
-                  <Icon name={copied ? 'check' : 'copy'} size={14} />{copied ? 'Copied' : 'Copy'}
+                <button type="button" className="btn" onClick={copyUrl}>
+                  <Icon name={copied ? 'check' : 'copy'} size={15} />{copied ? 'Copied' : 'Copy link'}
                 </button>
               </div>
-              <p className="card-sub" style={{ marginTop: 4 }}>
-                The source provides structured listing metadata. The full description is available on the original posting.
-              </p>
             </div>
           </section>
 
-          <section aria-labelledby="ji-ai" className="card">
-            <div className="card-head bordered" style={{ justifyContent: 'flex-start', gap: 10 }}>
-              <Icon name="sparkles" style={{ color: 'var(--accent-text)' }} />
-              <h2 id="ji-ai" className="card-title" style={{ flex: 1 }}>AI Job Intelligence</h2>
-              <Pill>Coming soon</Pill>
-            </div>
-            <div style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 16 }}>
-              <p className="muted" style={{ fontSize: 13.5, textWrap: 'pretty' }}>
-                Planned capabilities that will analyze this role against your profile. None of these are active yet — no scores or insights are generated.
-              </p>
-              <div className="ai-grid">
-                {AI_FEATURES.map((a) => (
-                  <div key={a.title} className="ai-item">
-                    <Icon name={a.icon} />
-                    <div>
-                      <div style={{ fontSize: 13.5, fontWeight: 500 }}>{a.title}</div>
-                      <div className="card-sub">{a.desc}</div>
-                    </div>
-                  </div>
-                ))}
+          <section aria-labelledby="ji-ai" className="panel">
+            <div className="panel-head">
+              <div>
+                <h2 id="ji-ai" className="panel-title">Analysis</h2>
+                <div className="panel-sub">Coming later. Nothing below is scored or generated yet.</div>
               </div>
+              <Pill tone="warning">Planned</Pill>
+            </div>
+            <div className="panel-body">
+              <ul className="planned-list">
+                {PLANNED.map(([icon, name, desc]) => (
+                  <li key={name}><span className="ico"><Icon name={icon} size={16} /></span><div><b>{name}</b><span>{desc}</span></div></li>
+                ))}
+              </ul>
             </div>
           </section>
         </div>
 
-        <div className="side-col">
-          <section aria-labelledby="ji-dsrc" className="card" style={{ padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <h2 id="ji-dsrc" className="card-title">Source</h2>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <div className="tile tile-32 is-accent" aria-hidden="true">{initials(job.source.replace(/_/g, ' '))}</div>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div className="list-row-title">{sourceLabel(job.source)} Jobs API</div>
-                <div className="list-row-sub">{lastSync ? `Last synced ${relativeTime(minutesSince(lastSync))}` : 'Not synced from this browser'}</div>
-              </div>
-              <StatusBadge tone="success">Active</StatusBadge>
-            </div>
+        <div className="detail-side">
+          <section aria-labelledby="ji-co" className="panel">
+            <div className="panel-head"><h2 id="ji-co" className="panel-title">More at {job.company}</h2></div>
+            {atCompany.length === 0
+              ? <p className="empty-line">No other {job.company} roles are stored.</p>
+              : <RoleList jobs={atCompany} sub={(j) => city(j.location)} />}
           </section>
 
-          <section aria-labelledby="ji-sim" className="card card-clip">
-            <div style={{ padding: '14px 18px', minWidth: 0 }}>
-              <h2 id="ji-sim" className="card-title">Similar roles</h2>
-              <div className="card-sub">Same job type and city</div>
+          <section aria-labelledby="ji-sim" className="panel">
+            <div className="panel-head">
+              <div>
+                <h2 id="ji-sim" className="panel-title">Similar roles</h2>
+                <div className="panel-sub">{typeLabel(job.jobType)}, {jobCity} first</div>
+              </div>
             </div>
-            {similar.length === 0 && <div className="inline-empty">No similar roles in the current job set.</div>}
-            {similar.map((s) => (
-              <Link key={s.id} to={`/jobs/${s.id}`} className="similar-item">
-                <div className="list-row-title truncate">{s.title}</div>
-                <div className="list-row-sub">{s.company} · {jobPosted(s)}</div>
-              </Link>
-            ))}
+            {similar.length === 0
+              ? <p className="empty-line">No similar roles are stored.</p>
+              : <RoleList jobs={similar} sub={(j) => `${j.company} · ${city(j.location)}`} />}
           </section>
         </div>
       </div>

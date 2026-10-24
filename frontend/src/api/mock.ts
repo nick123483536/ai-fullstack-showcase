@@ -1,6 +1,6 @@
 // Sample data used when VITE_USE_MOCK=true, so the UI can run without the backend.
 import { ApiError } from './client';
-import type { Job, JobSearchParams, Page } from './types';
+import type { CurrentUser, Job, JobSearchParams, Page } from './types';
 import { POSTED_MINUTES } from '../lib/format';
 
 const COMPANIES: [string, string][] = [
@@ -26,24 +26,45 @@ function toLocalDateTime(d: Date) {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
 }
 
+// Remotive and Jobicy listings, shaped the way the backend's clients map them; the rest stand in for Adzuna.
+const REMOTE_COMPANIES: [string, string][] = [
+  ['GitLab', 'Worldwide'], ['Automattic', 'Worldwide'], ['Toptal', 'Asia'], ['Doist', 'Worldwide'], ['Deel', 'India'], ['Canonical', 'Worldwide'],
+];
+
 const NOW = Date.now();
 const JOBS: Job[] = Array.from({ length: 50 }, (_, i) => {
-  const [company, location] = COMPANIES[(i * 7 + 3) % COMPANIES.length];
   const title = TITLES[(i * 3 + 1) % TITLES.length];
-  const jobType = /Intern/.test(title) ? 'Internship' : i % 9 === 4 ? 'Contract' : i % 13 === 7 ? 'Part Time' : 'Full Time';
   const minutes = Math.round(6 + i * 35 + i * i * 2.2);
   const id = 140 - i;
+  const postedAt = toLocalDateTime(new Date(NOW - minutes * 60000));
+  if (i % 6 === 5 || i % 6 === 2) {
+    const [company, geo] = REMOTE_COMPANIES[Math.floor(i / 3) % REMOTE_COMPANIES.length];
+    if (i % 6 === 2) {
+      return {
+        id, title, company, location: `Remote, ${geo}`, jobType: 'Full-Time', source: 'JOBICY',
+        jobUrl: `https://jobicy.com/jobs/${id}-${slug(title)}`,
+        postedAt,
+      };
+    }
+    return {
+      id, title, company, location: geo, jobType: 'REMOTE', source: 'REMOTIVE',
+      jobUrl: `https://remotive.com/remote-jobs/software-dev/${slug(title)}-${id}`,
+      postedAt,
+    };
+  }
+  const [company, location] = COMPANIES[(i * 7 + 3) % COMPANIES.length];
+  const jobType = /Intern/.test(title) ? 'Internship' : i % 9 === 4 ? 'Contract' : i % 13 === 7 ? 'Part Time' : 'Full Time';
   return {
     id, title, company, location, jobType,
-    source: 'INDIAN_API',
-    jobUrl: `https://careers.${slug(company)}.com/jobs/${id}`,
-    postedAt: toLocalDateTime(new Date(NOW - minutes * 60000)),
+    source: 'ADZUNA',
+    jobUrl: `https://www.adzuna.in/details/${id}`,
+    postedAt,
   };
 });
 
 const delay = <T>(value: T, ms = 450) => new Promise<T>((resolve) => setTimeout(() => resolve(value), ms));
 
-function fakeJwt(username: string) {
+export function fakeJwt(username: string) {
   const enc = (o: object) => btoa(JSON.stringify(o)).replace(/=+$/, '');
   return `${enc({ alg: 'none' })}.${enc({ sub: username, exp: Math.floor(Date.now() / 1000) + 86400 })}.mock`;
 }
@@ -51,6 +72,8 @@ function fakeJwt(username: string) {
 export const mockApi = {
   login: (username: string) => delay({ token: fakeJwt(username) }, 600),
   register: () => delay(undefined, 700),
+  // Sign in as a username starting with "user" to see the app as a normal user; anyone else is an admin.
+  getCurrentUser: (username: string): Promise<CurrentUser> => delay({ username, role: /^user/i.test(username) ? 'USER' : 'ADMIN' }, 150),
   getAllJobs: () => delay([...JOBS]),
   getJob: (id: number) => {
     const job = JOBS.find((j) => j.id === id);

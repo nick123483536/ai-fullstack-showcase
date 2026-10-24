@@ -1,39 +1,70 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
-import { MOBILE_MAX, useWindowWidth } from '../hooks/useWindowWidth';
+import { SHELL_FOLD_MAX, useWindowWidth } from '../hooks/useWindowWidth';
+import { readJson, writeJson } from '../lib/storage';
+import { CommandPalette } from './CommandPalette';
+import { AppFooter } from './AppFooter';
 import { Sidebar } from './Sidebar';
 import { SyncModal } from './SyncModal';
 import { Topbar } from './Topbar';
 
+const MIN_KEY = 'ji.sidebarMin';
+
 export function AppLayout() {
-  const width = useWindowWidth();
-  const isMobile = width <= MOBILE_MAX;
-  // null = follow the screen width; a boolean = the user's explicit choice.
-  const [collapsedChoice, setCollapsedChoice] = useState<boolean | null>(null);
-  const [drawerOpen, setDrawerOpen] = useState(false);
+  const folded = useWindowWidth() <= SHELL_FOLD_MAX;
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const [min, setMin] = useState(() => readJson<boolean>(MIN_KEY, false));
+  const [paletteOpen, setPaletteOpen] = useState(false);
   const { pathname } = useLocation();
-  const collapsed = !isMobile && (collapsedChoice ?? width < 1100);
 
   useEffect(() => {
     window.scrollTo(0, 0);
+    setSheetOpen(false);
   }, [pathname]);
+
+  useEffect(() => {
+    if (!folded) setSheetOpen(false);
+  }, [folded]);
+
+  // Ctrl+K (or Cmd+K) opens the command palette from anywhere.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setPaletteOpen((o) => !o);
+      }
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, []);
+
+  const toggleSidebar = useCallback(() => {
+    if (folded) {
+      setSheetOpen((o) => !o);
+      return;
+    }
+    setMin((m) => {
+      writeJson(MIN_KEY, !m);
+      return !m;
+    });
+  }, [folded]);
+
+  const openPalette = useCallback(() => setPaletteOpen(true), []);
 
   return (
     <div className="app-shell">
-      {isMobile && drawerOpen && <div className="drawer-overlay" onClick={() => setDrawerOpen(false)} />}
-      <Sidebar
-        isMobile={isMobile}
-        collapsed={collapsed}
-        open={drawerOpen}
-        onClose={() => setDrawerOpen(false)}
-        onToggleCollapse={() => setCollapsedChoice(!collapsed)}
-      />
+      {folded && sheetOpen && <div className="sheet-scrim" onClick={() => setSheetOpen(false)} />}
+      {(!folded || sheetOpen) && (
+        <Sidebar sheet={folded} min={!folded && min} onClose={() => setSheetOpen(false)} onSearch={openPalette} />
+      )}
       <div className="app-main">
-        <Topbar isMobile={isMobile} onOpenDrawer={() => setDrawerOpen(true)} />
+        <Topbar folded={folded} onToggleSidebar={toggleSidebar} onSearch={openPalette} />
         <main className="app-content">
           <Outlet />
         </main>
+        <AppFooter onShortcuts={openPalette} />
       </div>
+      {paletteOpen && <CommandPalette onClose={() => setPaletteOpen(false)} />}
       <SyncModal />
     </div>
   );

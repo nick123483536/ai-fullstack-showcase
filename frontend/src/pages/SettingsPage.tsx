@@ -1,4 +1,4 @@
-import { useState, type CSSProperties, type ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import type { PostedWithin } from '../api/types';
 import { Icon, type IconName } from '../components/Icon';
 import { Pill, Select } from '../components/ui';
@@ -7,7 +7,7 @@ import { usePreferences, type Preferences } from '../context/PreferencesContext'
 import { useTheme, type ThemeSetting } from '../context/ThemeContext';
 import { useToast } from '../context/ToastContext';
 import { useWorkspace } from '../context/WorkspaceContext';
-import { city, initials, POSTED_OPTIONS, uniqueSorted } from '../lib/format';
+import { city, POSTED_OPTIONS, uniqueSorted } from '../lib/format';
 
 type Tab = 'account' | 'security' | 'preferences' | 'notifications' | 'appearance';
 
@@ -19,88 +19,79 @@ const TABS: { id: Tab; label: string; icon: IconName }[] = [
   { id: 'appearance', label: 'Appearance', icon: 'sun' },
 ];
 
-function SectionHead({ title, desc, aside }: { title: string; desc: string; aside?: ReactNode }) {
+/** One setting group: its name and help in the label column, its controls in the panel beside it. */
+function Section({ title, desc, aside, children }: { title: string; desc: ReactNode; aside?: ReactNode; children: ReactNode }) {
   return (
-    <div className="settings-head">
+    <section className="settings-section">
       <div>
-        <h2>{title}</h2>
+        <h2>{title}{aside && <> {aside}</>}</h2>
         <p>{desc}</p>
       </div>
-      {aside}
-    </div>
+      <div className="settings-panel">{children}</div>
+    </section>
   );
 }
 
 function AccountSection() {
   const { username } = useAuth();
-  const { prefs, displayName, update } = usePreferences();
+  const { prefs, update } = usePreferences();
   const toast = useToast();
   const [name, setName] = useState(prefs.displayName || username || '');
   const [role, setRole] = useState(prefs.role);
+  const dirty = name.trim() !== (prefs.displayName || username || '') || role.trim() !== prefs.role;
 
   return (
-    <section className="card settings-section">
-      <SectionHead title="Account" desc="Your profile information. Stored on this device." />
-      <div className="settings-row">
-        <div className="settings-row-label">Avatar</div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <div className="avatar" aria-hidden="true" style={{ width: 44, height: 44, fontSize: 15 }}>{initials(displayName)}</div>
-          <span className="card-sub">Generated from your initials</span>
+    <>
+      <Section title="Profile" desc="How you appear in the sidebar. Stored on this device; the API has no profile endpoint yet.">
+        <label className="field">
+          <span className="field-label">Display name</span>
+          <input className="input" value={name} onChange={(e) => setName(e.target.value)} />
+        </label>
+        <label className="field">
+          <span className="field-label">Role</span>
+          <input className="input" value={role} onChange={(e) => setRole(e.target.value)} placeholder="e.g. Backend engineer" />
+        </label>
+        <div className="panel-actions">
+          <button type="button" className="btn btn-primary" disabled={!dirty} onClick={() => {
+            update({ displayName: name.trim(), role: role.trim() });
+            toast('Profile saved');
+          }}>
+            Save profile
+          </button>
         </div>
-      </div>
-      <label className="settings-row">
-        <div><div className="settings-row-label">Display name</div><div className="settings-row-hint">Shown in the sidebar</div></div>
-        <input className="input input-sm" value={name} onChange={(e) => setName(e.target.value)} />
-      </label>
-      <label className="settings-row">
-        <div><div className="settings-row-label">Username</div><div className="settings-row-hint">Used to sign in</div></div>
-        <input className="input input-sm" value={username ?? ''} readOnly />
-      </label>
-      <label className="settings-row">
-        <div><div className="settings-row-label">Role</div><div className="settings-row-hint">Shown under your name</div></div>
-        <input className="input input-sm" value={role} onChange={(e) => setRole(e.target.value)} placeholder="e.g. Software Engineer" />
-      </label>
-      <div className="card-foot">
-        <button type="button" className="btn btn-md btn-primary" onClick={() => {
-          update({ displayName: name.trim(), role: role.trim() });
-          toast('Changes saved');
-        }}>
-          Save changes
-        </button>
-      </div>
-    </section>
+      </Section>
+      <Section title="Username" desc="Used to sign in. It can't be changed.">
+        <label className="field">
+          <span className="field-label">Username</span>
+          <input className="input" value={username ?? ''} readOnly />
+        </label>
+      </Section>
+    </>
   );
 }
 
 function SecuritySection() {
   const { logout } = useAuth();
   return (
-    <div className="settings-section" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      <section className="card">
-        <SectionHead
-          title="Password"
-          desc="Password changes aren't supported by the API yet."
-          aside={<Pill>Coming soon</Pill>}
-        />
-        {['Current password', 'New password', 'Confirm new password'].map((label) => (
-          <label key={label} className="settings-row" style={{ padding: '16px 20px' }}>
-            <div className="settings-row-label">{label}</div>
-            <input type="password" className="input input-sm" autoComplete="new-password" disabled />
+    <>
+      <Section title="Password" desc="The API doesn't support password changes yet, so these fields are read-only." aside={<Pill tone="warning">Not available</Pill>}>
+        {['Current password', 'New password'].map((label) => (
+          <label key={label} className="field">
+            <span className="field-label">{label}</span>
+            <input type="password" className="input" autoComplete="new-password" disabled placeholder="Not available yet" />
           </label>
         ))}
-      </section>
-      <section className="card">
-        <SectionHead title="Session" desc="Authenticated with a JWT bearer token." />
-        <div className="toggle-row" style={{ flexWrap: 'wrap', gap: 12 }}>
-          <Icon name="monitor" size={18} style={{ color: 'var(--text-3)' }} />
-          <div style={{ flex: 1, minWidth: 180 }}>
-            <div className="settings-row-label">This browser</div>
-            <div className="settings-row-hint">Current session</div>
+      </Section>
+      <Section title="Session" desc="You're signed in on this browser with a token that expires on its own.">
+        <div className="switch-row" style={{ alignItems: 'center' }}>
+          <div style={{ flex: 1 }}>
+            <div className="switch-title">This browser</div>
+            <div className="switch-desc">Signing out removes the token from this device.</div>
           </div>
-          <button type="button" className="btn btn-md btn-danger-text" onClick={logout}>Sign out</button>
+          <button type="button" className="btn btn-danger" onClick={logout}>Sign out</button>
         </div>
-      </section>
-    </div>
+      </Section>
+    </>
   );
 }
 
@@ -117,33 +108,26 @@ function PreferencesSection() {
   };
 
   return (
-    <section className="card settings-section">
-      <SectionHead title="Preferences" desc="Defaults applied when you open Jobs from the sidebar." />
-      <div className="settings-row">
-        <div><div className="settings-row-label">Results per page</div><div className="settings-row-hint">Used by the Jobs list</div></div>
-        <div role="radiogroup" aria-label="Results per page" className="segmented">
+    <Section title="Job search defaults" desc="Applied when you open Jobs from the sidebar. Each change saves as you make it.">
+      <div className="field">
+        <span className="field-label" id="ji-pref-pp">Results per page</span>
+        <div role="radiogroup" aria-labelledby="ji-pref-pp" className="segmented">
           {([10, 20, 50] as const).map((n) => (
             <button key={n} type="button" role="radio" aria-checked={prefs.perPage === n} onClick={() => save({ perPage: n })}>{n}</button>
           ))}
         </div>
       </div>
-      <div className="settings-row">
-        <div>
-          <label htmlFor="ji-pref-loc" className="settings-row-label">Default location</label>
-          <div className="settings-row-hint">Pre-filled on new searches</div>
-        </div>
+      <div className="field">
+        <label htmlFor="ji-pref-loc" className="field-label">Location</label>
         <Select
           id="ji-pref-loc"
           value={prefs.defaultLocation}
-          options={[{ value: '', label: 'No default' }, ...cities.map((c) => ({ value: c, label: c }))]}
+          options={[{ value: '', label: 'Anywhere' }, ...cities.map((c) => ({ value: c, label: c }))]}
           onChange={(v) => save({ defaultLocation: v })}
         />
       </div>
-      <div className="settings-row">
-        <div>
-          <label htmlFor="ji-pref-posted" className="settings-row-label">Default recency</label>
-          <div className="settings-row-hint">Posted within</div>
-        </div>
+      <div className="field">
+        <label htmlFor="ji-pref-posted" className="field-label">Posted within</label>
         <Select
           id="ji-pref-posted"
           value={prefs.defaultPostedWithin}
@@ -151,7 +135,7 @@ function PreferencesSection() {
           onChange={(v) => save({ defaultPostedWithin: v as PostedWithin })}
         />
       </div>
-    </section>
+    </Section>
   );
 }
 
@@ -164,16 +148,19 @@ const NOTIFICATIONS: { key: keyof Preferences['notifications']; label: string; d
 function NotificationsSection() {
   const { prefs, update } = usePreferences();
   return (
-    <section className="card settings-section">
-      <SectionHead title="Notifications" desc="Choose what you want to hear about." aside={<Pill>Delivery coming soon</Pill>} />
+    <Section
+      title="Notifications"
+      desc="Your choices are kept, but nothing is delivered yet: the backend has no notification service."
+      aside={<Pill tone="warning">Not delivered yet</Pill>}
+    >
       {NOTIFICATIONS.map((n) => {
         const on = prefs.notifications[n.key];
         const id = `ji-n-${n.key}`;
         return (
-          <div key={n.key} className="toggle-row">
+          <div key={n.key} className="switch-row">
             <div style={{ flex: 1, minWidth: 0 }}>
-              <div id={id} className="settings-row-label">{n.label}</div>
-              <div className="settings-row-hint">{n.desc}</div>
+              <div id={id} className="switch-title">{n.label}</div>
+              <div className="switch-desc">{n.desc}</div>
             </div>
             <button
               type="button"
@@ -188,58 +175,69 @@ function NotificationsSection() {
           </div>
         );
       })}
-    </section>
+    </Section>
   );
 }
 
-const THEME_OPTIONS: { id: ThemeSetting; label: string; bg: string; side: string; line: string; border: string; line2: string }[] = [
-  { id: 'light', label: 'Light', bg: '#f6f7f9', side: '#ffffff', line: '#d2d6dd', border: '#e3e6eb', line2: '#e3e6eb' },
-  { id: 'dark', label: 'Dark', bg: '#0b0c10', side: '#121419', line: '#3a3f4c', border: '#242832', line2: '#242832' },
-  { id: 'system', label: 'System', bg: 'linear-gradient(90deg,#f6f7f9 50%,#0b0c10 50%)', side: 'transparent', line: '#8a90a0', border: '#6b7180', line2: '#9aa0ad' },
+const THEME_OPTIONS: { id: ThemeSetting; label: string; halves: [string, string]; side: string; line: string; border: string }[] = [
+  { id: 'light', label: 'Light', halves: ['#f4faf7', '#ffffff'], side: '#f4faf7', line: '#d8e0dc', border: '#e3e9e6' },
+  { id: 'dark', label: 'Dark', halves: ['#050c09', '#0b1511'], side: '#050c09', line: '#24352d', border: '#1b2a23' },
+  { id: 'system', label: 'System', halves: ['#f4faf7', '#0b1511'], side: 'transparent', line: '#8aa197', border: '#9aa8a2' },
 ];
 
 function AppearanceSection() {
   const { theme, setTheme } = useTheme();
   return (
-    <section className="card settings-section">
-      <SectionHead title="Appearance" desc="Select a theme for the interface." />
+    <Section title="Theme" desc="System follows your device's light or dark setting.">
       <div role="radiogroup" aria-label="Theme" className="theme-grid">
         {THEME_OPTIONS.map((o) => (
           <button key={o.id} type="button" role="radio" className="theme-opt" aria-checked={theme === o.id} onClick={() => setTheme(o.id)}>
-            <div aria-hidden="true" className="theme-preview" style={{ background: o.bg, borderColor: o.border } as CSSProperties}>
+            <div aria-hidden="true" className="theme-preview" style={{ borderColor: o.border, background: o.halves[0] }}>
               <div className="theme-preview-side" style={{ background: o.side, borderColor: o.border }} />
-              <div className="theme-preview-body">
+              <div className="theme-preview-body" style={{ background: o.halves[1] }}>
                 <span style={{ width: '60%', background: o.line }} />
-                <span style={{ width: '85%', background: o.line2 }} />
-                <span style={{ width: '40%', background: '#6366f1' }} />
+                <span style={{ width: '85%', background: o.line }} />
+                <span style={{ width: '30%', background: '#10b981' }} />
               </div>
             </div>
-            <div className="theme-opt-label"><span className="radio-dot" />{o.label}</div>
+            <div className="theme-opt-label">{o.label}</div>
           </button>
         ))}
       </div>
-    </section>
+    </Section>
   );
 }
 
+const DESCRIPTIONS: Record<Tab, string> = {
+  account: 'Your profile and sign-in name.',
+  security: 'Password and the session on this browser.',
+  preferences: 'Defaults for searching jobs.',
+  notifications: 'What you want to hear about.',
+  appearance: 'How the interface looks on this device.',
+};
+
 export function SettingsPage() {
   const [tab, setTab] = useState<Tab>('account');
+  const current = TABS.find((t) => t.id === tab)!;
 
   return (
     <div className="page">
-      <div>
-        <h1 className="page-title">Settings</h1>
-        <p className="page-desc">Manage your account and workspace preferences.</p>
+      <div className="page-head">
+        <div>
+          <div className="crumb">Settings</div>
+          <h1 className="page-title">{current.label}</h1>
+          <p className="page-desc">{DESCRIPTIONS[tab]}</p>
+        </div>
       </div>
       <div className="settings-layout">
-        <nav aria-label="Settings sections" className="settings-nav">
+        <nav aria-label="Settings areas" className="settings-nav">
           {TABS.map((t) => (
             <button key={t.id} type="button" className="nav-item" aria-current={tab === t.id ? 'page' : undefined} onClick={() => setTab(t.id)}>
-              <Icon name={t.icon} />{t.label}
+              <Icon name={t.icon} size={16} strokeWidth={1.5} />{t.label}
             </button>
           ))}
         </nav>
-        <div style={{ minWidth: 0 }}>
+        <div className="settings-area">
           {tab === 'account' && <AccountSection />}
           {tab === 'security' && <SecuritySection />}
           {tab === 'preferences' && <PreferencesSection />}

@@ -1,66 +1,61 @@
-import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import type { Job } from '../api/types';
-import { JobCard } from '../components/JobCard';
-import { EmptyState, ErrorState, JobListSkeleton } from '../components/ui';
+import { JobTable, JobTableSkeleton } from '../components/JobCard';
+import { EmptyBlock, ErrorLine } from '../components/ui';
 import { usePreferences } from '../context/PreferencesContext';
 import { useSavedJobs } from '../context/SavedJobsContext';
 import { useWorkspace } from '../context/WorkspaceContext';
-
-type Tab = 'all' | 'recent' | 'applied';
+import { isFreshJob, sortByPostedDesc } from '../lib/format';
 
 export function SavedJobsPage() {
-  const [tab, setTab] = useState<Tab>('all');
   const { savedIds } = useSavedJobs();
   const { jobsUrl } = usePreferences();
   const { jobs, jobsStatus, jobsError, reloadJobs } = useWorkspace();
 
   const byId = new Map(jobs.map((j) => [j.id, j]));
-  // Saved ids whose jobs no longer exist in the database are skipped.
-  const savedJobs = savedIds.map((id) => byId.get(id)).filter((j): j is Job => !!j);
-  const list = tab === 'recent' ? [...savedJobs].reverse() : savedJobs;
+  // Most recently saved first. Saved ids whose jobs no longer exist in the database are skipped.
+  const saved = [...savedIds].reverse().map((id) => byId.get(id)).filter((j): j is Job => !!j);
+  const fresh = saved.filter(isFreshJob).length;
+  const loading = jobsStatus === 'loading' && jobs.length === 0;
+  const suggestions = saved.length === 0 ? sortByPostedDesc(jobs).slice(0, 5) : [];
 
-  const tabs: { id: Tab; label: string; count: string | number }[] = [
-    { id: 'all', label: 'All', count: savedJobs.length },
-    { id: 'recent', label: 'Recently saved', count: savedJobs.length },
-    { id: 'applied', label: 'Applied', count: 'Soon' },
-  ];
-
-  let body;
-  if (tab === 'applied') {
-    body = (
-      <EmptyState icon="check" title="Application tracking is coming soon">
-        You'll be able to mark saved roles as applied and follow their status here.
-      </EmptyState>
-    );
-  } else if (jobsStatus === 'loading' && jobs.length === 0) {
-    body = <JobListSkeleton rows={Math.min(Math.max(savedIds.length, 1), 5)} />;
-  } else if (jobsStatus === 'error') {
-    body = <ErrorState title="Unable to load saved jobs." message={jobsError} onRetry={reloadJobs} />;
-  } else if (list.length === 0) {
-    body = (
-      <EmptyState icon="bookmark" title="No saved jobs yet" action={<Link to={jobsUrl} className="btn btn-md btn-primary">Browse jobs</Link>}>
-        Bookmark roles from search to keep them here.
-      </EmptyState>
-    );
-  } else {
-    body = <div className="job-list">{list.map((job) => <JobCard key={job.id} job={job} />)}</div>;
-  }
+  const desc = saved.length === 0
+    ? 'Roles you bookmark are kept here, on this device.'
+    : `${saved.length} role${saved.length === 1 ? '' : 's'} kept on this device${fresh ? `, ${fresh} posted in the last 24 hours` : ''}. Apply while they're open.`;
 
   return (
     <div className="page">
-      <div>
-        <h1 className="page-title">Saved Jobs</h1>
-        <p className="page-desc">Roles you've bookmarked. Stored on this device until saved-jobs sync is available.</p>
+      <div className="page-head">
+        <div>
+          <h1 className="page-title">Saved</h1>
+          <p className="page-desc">{desc}</p>
+        </div>
       </div>
-      <div role="tablist" aria-label="Saved jobs views" className="tabs">
-        {tabs.map((t) => (
-          <button key={t.id} type="button" role="tab" className="tab" aria-selected={tab === t.id} onClick={() => setTab(t.id)}>
-            {t.label}<span className="tab-count">{t.count}</span>
-          </button>
-        ))}
-      </div>
-      <div role="tabpanel">{body}</div>
+
+      <section aria-labelledby="ji-saved-list" className="panel panel-clip">
+        <div className="panel-head">
+          <div>
+            <h2 id="ji-saved-list" className="panel-title">Saved roles</h2>
+            <div className="panel-sub">Most recently saved first</div>
+          </div>
+        </div>
+        {loading && <JobTableSkeleton rows={Math.min(Math.max(savedIds.length, 2), 6)} />}
+        {jobsStatus === 'error' && <ErrorLine message={`Couldn't load your saved roles. ${jobsError}`} onRetry={reloadJobs} />}
+        {!loading && jobsStatus !== 'error' && saved.length === 0 && (
+          <>
+            <EmptyBlock title="Nothing saved yet" action={<Link to={jobsUrl} className="btn btn-primary">Browse jobs</Link>}>
+              Use the bookmark on any role to keep it here until you apply. These are the freshest to start with.
+            </EmptyBlock>
+            {suggestions.length > 0 && (
+              <>
+                <div className="subhead"><h3>Newest roles</h3></div>
+                <JobTable jobs={suggestions} caption="Newest roles you could save" />
+              </>
+            )}
+          </>
+        )}
+        {saved.length > 0 && <JobTable jobs={saved} caption="Saved roles" />}
+      </section>
     </div>
   );
 }

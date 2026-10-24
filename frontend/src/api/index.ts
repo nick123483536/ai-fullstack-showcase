@@ -1,6 +1,6 @@
 import { apiRequest, ApiError, USE_MOCK } from './client';
 import { mockApi } from './mock';
-import type { AuthResponse, Job, JobSearchParams, Page } from './types';
+import type { AuthResponse, CurrentUser, Job, JobSearchParams, Page } from './types';
 
 /** Query string for GET /api/jobs/search. Exported so the Jobs page can show the request it maps to. */
 export function buildSearchQuery(p: JobSearchParams) {
@@ -41,6 +41,13 @@ export async function register(username: string, password: string): Promise<void
   }
 }
 
+/** The signed-in user and their role; the backend reads the role from the database on every request. */
+export function getCurrentUser(username: string, signal?: AbortSignal): Promise<CurrentUser> {
+  if (USE_MOCK) return mockApi.getCurrentUser(username);
+  // Only decides what the menu shows, so a failure (an older backend without /me) falls back to the normal-user view instead of signing out.
+  return apiRequest<CurrentUser>('/api/auth/me', { signal, signOutOn401: false });
+}
+
 export function getAllJobs(signal?: AbortSignal): Promise<Job[]> {
   if (USE_MOCK) return mockApi.getAllJobs();
   return apiRequest<Job[]>('/api/jobs', { signal });
@@ -56,7 +63,7 @@ export function searchJobs(params: JobSearchParams, signal?: AbortSignal): Promi
   return apiRequest<Page<Job>>(`/api/jobs/search?${buildSearchQuery(params)}`, { signal });
 }
 
-/** Pulls the latest listings from IndianAPI into the database. Returns the jobs ingested. */
+/** Pulls the latest listings from every connected source into the database. Returns the jobs ingested. */
 export function ingestFromSource(): Promise<Job[]> {
   if (USE_MOCK) return mockApi.ingestFromSource();
   return apiRequest<Job[]>('/api/ingestion/source');

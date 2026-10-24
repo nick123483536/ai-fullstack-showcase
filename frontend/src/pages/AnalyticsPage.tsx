@@ -1,158 +1,119 @@
-import type { Job } from '../api/types';
-import { Icon } from '../components/Icon';
-import { SyncHistoryTable } from '../components/SyncHistoryTable';
-import { ErrorState } from '../components/ui';
+import { useMemo, useState } from 'react';
+import { AreaChart, BarList, ChartLegend } from '../components/Charts';
+import { ErrorLine, LogoTile } from '../components/ui';
 import { useWorkspace } from '../context/WorkspaceContext';
-import { city, countBy, postedTime } from '../lib/format';
+import { city, countBy, formatCount, jobMinutes, typeLabel } from '../lib/format';
+import { dailySeries, fittingRange, StatCard } from './DashboardPage';
 
-const DAYS = 14;
-const W = 640;
-const H = 200;
-
-function startOfDay(t: number) {
-  const d = new Date(t);
-  d.setHours(0, 0, 0, 0);
-  return d.getTime();
-}
-
-/** Jobs per posting day over the last 14 days, oldest first. */
-function dailySeries(jobs: Job[]) {
-  const today = startOfDay(Date.now());
-  const days = Array.from({ length: DAYS }, (_, i) => {
-    const d = new Date(today);
-    d.setDate(d.getDate() - (DAYS - 1 - i));
-    return d.getTime();
-  });
-  const counts = new Array(DAYS).fill(0) as number[];
-  jobs.forEach((j) => {
-    const t = postedTime(j);
-    if (t === null) return;
-    const idx = days.indexOf(startOfDay(t));
-    if (idx >= 0) counts[idx] += 1;
-  });
-  return { days, counts };
-}
-
-/** Round up to a tick-friendly maximum so the y-axis reads cleanly in 4 steps. */
-function niceMax(v: number) {
-  if (v <= 4) return 4;
-  const step = Math.pow(10, Math.floor(Math.log10(v / 4)));
-  const nice = [1, 2, 2.5, 5, 10].map((m) => m * step * 4).find((m) => m >= v);
-  return nice ?? Math.ceil(v / 4) * 4;
-}
-
-function BarCard({ title, sub, rows }: { title: string; sub: string; rows: [string, number][] }) {
-  const max = rows[0]?.[1] || 1;
-  return (
-    <section className="card bar-card">
-      <div style={{ minWidth: 0 }}>
-        <h2 className="card-title">{title}</h2>
-        <div className="card-sub">{sub}</div>
-      </div>
-      <div className="bar-rows">
-        {rows.length === 0 && <div className="card-sub">No data yet.</div>}
-        {rows.map(([label, count]) => (
-          <div key={label} className="bar-row">
-            <span className="bar-row-label" title={label}>{label}</span>
-            <div className="bar-track"><div className="bar-fill" style={{ width: `${Math.max(3, (count / max) * 100)}%` }} /></div>
-            <span className="bar-value">{count}</span>
-          </div>
-        ))}
-      </div>
-    </section>
-  );
-}
+const RANGES = [
+  { days: 90, label: '3 months', smoothing: 5 },
+  { days: 30, label: '30 days', smoothing: 2 },
+  { days: 7, label: '7 days', smoothing: 1 },
+];
 
 export function AnalyticsPage() {
-  const { jobs, jobsStatus, jobsError, reloadJobs, syncHistory } = useWorkspace();
+  const { jobs, jobsStatus, jobsError, reloadJobs } = useWorkspace();
+  const [rangeChoice, setRange] = useState<(typeof RANGES)[number] | null>(null);
+  const range = rangeChoice ?? fittingRange(RANGES, jobs);
+  const chart = useMemo(() => dailySeries(jobs, range.days), [jobs, range.days]);
 
-  if (jobsStatus === 'error') {
-    return (
-      <div className="page">
-        <h1 className="page-title">Analytics</h1>
-        <ErrorState title="Unable to load analytics." message={jobsError} onRetry={reloadJobs} />
-      </div>
-    );
+  const minutes = (m: number | null) => m ?? Infinity;
+  const last30 = jobs.filter((j) => minutes(jobMinutes(j)) < 43200).length;
+  const prior30 = jobs.filter((j) => {
+    const m = minutes(jobMinutes(j));
+    return m >= 43200 && m < 86400;
+  }).length;
+  const companies = countBy(jobs, (j) => j.company);
+  const cities = countBy(jobs, (j) => city(j.location));
+  const types = countBy(jobs, (j) => typeLabel(j.jobType));
+  const remote = jobs.filter((j) => /remote|worldwide/i.test(`${j.location} ${j.jobType}`)).length;
+  const remoteShare = jobs.length ? Math.round((remote / jobs.length) * 100) : 0;
+  const undated = jobs.filter((j) => jobMinutes(j) === null).length;
+  const diff = last30 - prior30;
+
+  let finding = 'Loading the roles stored in your database…';
+  if (jobsStatus === 'error') finding = "Couldn't load jobs, so there's nothing to chart yet.";
+  else if (jobsStatus === 'ready' && jobs.length === 0) finding = 'No roles are stored yet.';
+  else if (jobs.length > 0) {
+    finding = `${formatCount(last30)} role${last30 === 1 ? '' : 's'} posted in the last 30 days.`
+      + (cities[0] ? ` ${cities[0][0]} leads with ${cities[0][1]} of ${formatCount(jobs.length)} stored.` : '')
+      + (undated ? ` ${undated} role${undated === 1 ? ' has' : 's have'} no posting date.` : '');
   }
-
-  const { days, counts } = dailySeries(jobs);
-  const yMax = niceMax(Math.max(...counts));
-  const yTicks = [4, 3, 2, 1, 0].map((i) => Math.round((yMax / 4) * i));
-  const pts = counts.map((v, i) => [(i * W) / (DAYS - 1), H - (v / yMax) * H]);
-  const line = 'M' + pts.map(([x, y]) => `${x.toFixed(1)},${y.toFixed(1)}`).join(' L');
-  const area = `${line} L${W},${H} L0,${H} Z`;
-  const xLabels = days
-    .map((t) => new Date(t).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }))
-    .filter((_, i) => i % 2 === 1);
-  const inWindow = counts.reduce((a, b) => a + b, 0);
-  const sources = countBy(jobs, (j) => j.source);
-  const indianApiCount = sources.find(([s]) => s === 'INDIAN_API')?.[1] ?? 0;
 
   return (
     <div className="page">
-      <div>
-        <h1 className="page-title">Analytics</h1>
-        <p className="page-desc">How jobs flow through the pipeline over time.</p>
+      <div className="page-head">
+        <div>
+          <h1 className="page-title">Analytics</h1>
+          <p className="page-desc">{finding}</p>
+        </div>
+        <span className="muted" style={{ fontSize: 13 }}>Computed in your browser from {formatCount(jobs.length)} stored roles</span>
       </div>
 
-      <div role="note" className="note">
-        <Icon name="alert" />
-        <span>There's no analytics API yet. These charts are computed in your browser from the {jobs.length} jobs currently stored, using each job's posting date.</span>
+      <div className="stat-grid stagger">
+        <StatCard label="Roles stored" icon="briefcase" value={jobs.length}>
+          {chart.series.length ? <>From <b>{chart.series.map((s) => s.label).reverse().join(' and ')}</b></> : 'No source has delivered roles yet'}
+        </StatCard>
+        <StatCard
+          label="Posted in 30 days"
+          icon="trendUp"
+          value={last30}
+          badge={prior30 || last30 ? { text: diff === 0 ? 'Same' : `${diff > 0 ? '+' : ''}${diff}`, tone: diff > 0 ? 'up' : diff < 0 ? 'down' : 'flat' } : undefined}
+        >
+          {prior30 ? <><b>{diff >= 0 ? 'Up' : 'Down'} from {prior30}</b> the 30 days before</> : 'Nothing in the 30 days before'}
+        </StatCard>
+        <StatCard label="Companies" icon="building" value={companies.length}>
+          {companies[0] ? <><b>{companies[0][0]}</b> has the most open roles ({companies[0][1]})</> : 'No companies yet'}
+        </StatCard>
+        <StatCard label="Remote share" icon="globe" value={remoteShare} suffix="%" badge={{ text: `${remote} role${remote === 1 ? '' : 's'}`, tone: 'flat' }}>
+          <b>{remoteShare}%</b> of stored roles can be done remotely
+        </StatCard>
       </div>
 
-      <section aria-labelledby="ji-tl" className="card chart-card">
-        <div className="chart-head">
-          <div style={{ flex: '1 1 auto', minWidth: 0 }}>
-            <h2 id="ji-tl" className="card-title">Jobs posted</h2>
-            <div className="card-sub">Per day · last 14 days · {inWindow} in range</div>
-          </div>
-        </div>
-        <div className="line-chart">
-          <div className="line-chart-y" aria-hidden="true">
-            {yTicks.map((y, i) => <span key={i}>{y}</span>)}
-          </div>
-          <div className="line-chart-plot">
-            <svg role="img" aria-label={`Line chart of jobs posted per day over the last 14 days. Peak ${Math.max(...counts)} per day.`} viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none">
-              {[0, 50, 100, 150, 200].map((g) => (
-                <line key={g} x1="0" x2={W} y1={g} y2={g} stroke="var(--border)" strokeWidth="1" vectorEffect="non-scaling-stroke" />
-              ))}
-              <path d={area} fill="var(--accent)" opacity="0.08" />
-              <path d={line} fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
-            </svg>
-            <div className="line-chart-x" aria-hidden="true">
-              {xLabels.map((x) => <span key={x}>{x}</span>)}
+      {jobsStatus === 'error' ? (
+        <section className="panel"><ErrorLine message={`Couldn't load jobs. ${jobsError}`} onRetry={reloadJobs} /></section>
+      ) : (
+        <section className="panel chart-card rise" style={{ animationDelay: '0.2s' }} aria-labelledby="ji-an-chart">
+          <div className="panel-head">
+            <div>
+              <h2 id="ji-an-chart" className="panel-title">Roles posted per day</h2>
+              <div className="panel-sub">{formatCount(chart.total)} in the last {range.label}, by posting date{range.smoothing > 1 ? `, ${range.smoothing}-day average` : ''}</div>
             </div>
-          </div>
-        </div>
-      </section>
-
-      <div className="bar-grid">
-        <BarCard title="Jobs by location" sub="Current job set" rows={countBy(jobs, (j) => city(j.location)).slice(0, 6)} />
-        <BarCard title="Jobs by job type" sub="Current job set" rows={countBy(jobs, (j) => j.jobType).slice(0, 6)} />
-        <BarCard title="Top companies" sub="By open roles" rows={countBy(jobs, (j) => j.company).slice(0, 6)} />
-        <section className="card bar-card">
-          <div style={{ minWidth: 0 }}>
-            <h2 className="card-title">Jobs by source</h2>
-            <div className="card-sub">Connected and planned providers</div>
-          </div>
-          <div className="bar-rows">
-            <div className="bar-row">
-              <span className="bar-row-label">IndianAPI</span>
-              <div className="bar-track"><div className="bar-fill" style={{ width: indianApiCount ? '100%' : '0%' }} /></div>
-              <span className="bar-value">{indianApiCount}</span>
-            </div>
-            {['LinkedIn', 'Indeed', 'Naukri'].map((name) => (
-              <div key={name} className="bar-row">
-                <span className="bar-row-label">{name}</span>
-                <div className="bar-track" />
-                <span className="bar-value is-faint">Not connected</span>
+            <div className="chart-tools">
+              <ChartLegend items={[...chart.series].reverse().map((s) => ({ label: s.label, color: s.color }))} />
+              <div role="radiogroup" aria-label="Time range" className="segmented">
+                {RANGES.map((r) => (
+                  <button key={r.days} type="button" role="radio" aria-checked={r.days === range.days} onClick={() => setRange(r)}>{r.label}</button>
+                ))}
               </div>
-            ))}
+            </div>
+          </div>
+          <div className="panel-body">
+            <AreaChart series={chart.series} pointLabels={chart.pointLabels} smoothing={range.smoothing} animationKey={range.days} height={260} ariaLabel={`Roles posted per day over the last ${range.label}: ${chart.total} in total.`} />
+          </div>
+        </section>
+      )}
+
+      <div className="three-col rise" style={{ animationDelay: '0.3s' }}>
+        <section className="panel" aria-labelledby="ji-an-loc">
+          <div className="panel-head"><div><h2 id="ji-an-loc" className="panel-title">Top locations</h2><div className="panel-sub">Top 5 of all stored roles</div></div></div>
+          <div className="panel-body">
+            {cities.length ? <BarList caption="Top locations" rows={cities.slice(0, 5).map(([label, value]) => ({ label, value, href: `/jobs?location=${encodeURIComponent(label)}` }))} /> : <p className="muted">No roles stored yet.</p>}
+          </div>
+        </section>
+        <section className="panel" aria-labelledby="ji-an-co">
+          <div className="panel-head"><div><h2 id="ji-an-co" className="panel-title">Top companies</h2><div className="panel-sub">By open roles</div></div></div>
+          <div className="panel-body">
+            {companies.length ? <BarList caption="Top companies" rows={companies.slice(0, 5).map(([label, value]) => ({ label, value, lead: <LogoTile name={label} size={30} />, href: `/jobs?company=${encodeURIComponent(label)}` }))} /> : <p className="muted">No roles stored yet.</p>}
+          </div>
+        </section>
+        <section className="panel" aria-labelledby="ji-an-type">
+          <div className="panel-head"><div><h2 id="ji-an-type" className="panel-title">Job types</h2><div className="panel-sub">Share of all stored roles</div></div></div>
+          <div className="panel-body">
+            {types.length ? <BarList caption="Job types" rows={types.slice(0, 5).map(([label, value]) => ({ label, value }))} valueLabel={(v) => `${v} · ${Math.round((v / jobs.length) * 100)}%`} /> : <p className="muted">No roles stored yet.</p>}
           </div>
         </section>
       </div>
-
-      <SyncHistoryTable title="Recent ingestion activity" history={syncHistory} secondColumn="source" />
     </div>
   );
 }

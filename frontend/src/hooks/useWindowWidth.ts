@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 
-/** Breakpoints from the design: mobile drawer < 860, single column < 1080, auto-collapsed sidebar < 1100. */
+/** Phone layouts at 859 and below; the sidebar becomes a sheet at 1023 and below. */
 export const MOBILE_MAX = 859;
+export const SHELL_FOLD_MAX = 1023;
 
 export function useWindowWidth() {
   const [width, setWidth] = useState(() => window.innerWidth);

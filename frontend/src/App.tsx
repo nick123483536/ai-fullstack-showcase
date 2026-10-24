@@ -1,6 +1,6 @@
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { AppLayout } from './components/AppLayout';
-import { PublicOnly, RequireAuth } from './components/RouteGuards';
+import { PublicOnly, RequireAdmin, RequireAuth } from './components/RouteGuards';
 import { AnalyticsPage } from './pages/AnalyticsPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { JobDetailsPage } from './pages/JobDetailsPage';
@@ -24,7 +24,9 @@ export default function App() {
           <Route path="jobs" element={<JobsPage />} />
           <Route path="jobs/:id" element={<JobDetailsPage />} />
           <Route path="saved" element={<SavedJobsPage />} />
-          <Route path="sources" element={<SourcesPage />} />
+          <Route element={<RequireAdmin />}>
+            <Route path="sources" element={<SourcesPage />} />
+          </Route>
           <Route path="analytics" element={<AnalyticsPage />} />
           <Route path="settings" element={<SettingsPage />} />
         </Route>

@@ -1,12 +1,17 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import * as api from '../api';
-import { setAuthToken, setUnauthorizedHandler } from '../api/client';
+import { isAbortError, setAuthToken, setUnauthorizedHandler, USE_MOCK } from '../api/client';
+import type { Role } from '../api/types';
+import { fakeJwt } from '../api/mock';
 
 const TOKEN_KEY = 'ji.token';
 
 interface AuthContextValue {
   token: string | null;
   username: string | null;
+  /** From GET /api/auth/me; null until it loads. The backend enforces access, this only decides what to show. */
+  role: Role | null;
+  isAdmin: boolean;
   login: (username: string, password: string, remember: boolean) => Promise<void>;
   register: (username: string, password: string) => Promise<void>;
   logout: () => void;
@@ -33,6 +38,9 @@ function isExpired(claims: JwtClaims | null) {
 }
 
 function readStoredToken(): string | null {
+  // Mock mode only: ?demo signs in as a sample admin, ?demo=user as a normal user, so screenshots can reach the app without a login.
+  const demo = USE_MOCK ? new URLSearchParams(window.location.search).get('demo') : null;
+  if (demo !== null) return fakeJwt(demo === 'user' ? 'user' : 'nikhil');
   try {
     const token = localStorage.getItem(TOKEN_KEY) ?? sessionStorage.getItem(TOKEN_KEY);
     if (token && isExpired(decodeClaims(token))) {
@@ -62,11 +70,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return stored;
   });
 
+  const [role, setRole] = useState<Role | null>(null);
+  const username = token ? decodeClaims(token)?.sub ?? null : null;
+
   const logout = useCallback(() => {
     clearStoredToken();
     setAuthToken(null);
     setToken(null);
   }, []);
+
+  // Ask the backend for this user's role whenever the signed-in user changes.
+  useEffect(() => {
+    setRole(null);
+    if (!token || !username) return;
+    const ctrl = new AbortController();
+    api.getCurrentUser(username, ctrl.signal)
+      .then((me) => setRole(me.role === 'ADMIN' ? 'ADMIN' : 'USER'))
+      .catch((err) => {
+        // A 401 signs out through the unauthorized handler; on any other failure show the normal-user view.
+        if (!isAbortError(err)) setRole('USER');
+      });
+    return () => ctrl.abort();
+  }, [token, username]);
 
   useEffect(() => {
     setUnauthorizedHandler(logout);
@@ -89,11 +114,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const value = useMemo<AuthContextValue>(() => ({
     token,
-    username: token ? decodeClaims(token)?.sub ?? null : null,
+    username,
+    role,
+    isAdmin: role === 'ADMIN',
     login,
     register,
     logout,
-  }), [token, login, register, logout]);
+  }), [token, username, role, login, register, logout]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

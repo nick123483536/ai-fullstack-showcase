@@ -4,25 +4,19 @@ import { buildSearchQuery, searchJobs } from '../api';
 import { errorMessage, isAbortError } from '../api/client';
 import type { Job, JobFilters, JobSearchParams, Page, PostedWithin } from '../api/types';
 import { Icon } from '../components/Icon';
-import { JobCard } from '../components/JobCard';
-import { EmptyState, ErrorState, JobListSkeleton, Select, type SelectOption } from '../components/ui';
+import { JobTable, JobTableSkeleton } from '../components/JobCard';
+import { EmptyBlock, ErrorLine, Select, type SelectOption } from '../components/ui';
 import { usePreferences } from '../context/PreferencesContext';
 import { MOBILE_MAX } from '../hooks/useWindowWidth';
 import { useWorkspace } from '../context/WorkspaceContext';
-import { city, DEFAULT_JOB_TYPES, POSTED_OPTIONS, uniqueSorted } from '../lib/format';
+import { city, DEFAULT_JOB_TYPES, isFreshJob, POSTED_OPTIONS, SOURCE_LABELS, typeLabel, uniqueSorted } from '../lib/format';
 
 type FilterKey = Exclude<keyof JobFilters, 'title'>;
 
 const FILTER_LABELS: Record<FilterKey, string> = {
-  location: 'Location', company: 'Company', jobType: 'Job type', source: 'Source', postedWithin: 'Posted',
+  location: 'Location', company: 'Company', jobType: 'Job type', postedWithin: 'Posted', source: 'Source',
 };
 
-const SOURCE_OPTIONS: SelectOption[] = [
-  { value: '', label: 'All sources' },
-  { value: 'INDIAN_API', label: 'IndianAPI' },
-  { value: 'LINKEDIN', label: 'LinkedIn (coming soon)', disabled: true },
-  { value: 'INDEED', label: 'Indeed (coming soon)', disabled: true },
-];
 
 function readFilters(params: URLSearchParams): JobFilters {
   const posted = params.get('postedWithin') ?? '';
@@ -109,13 +103,13 @@ export function JobsPage() {
 
   // Filter options come from the full job set so they match what's actually stored.
   const options = useMemo(() => {
-    const opt = (all: string, values: string[]): SelectOption[] => [{ value: '', label: all }, ...values.map((v) => ({ value: v, label: v }))];
+    const opt = (all: string, values: string[], label = (v: string) => v): SelectOption[] => [{ value: '', label: all }, ...values.map((v) => ({ value: v, label: label(v) }))];
     const types = uniqueSorted(allJobs.map((j) => j.jobType));
     return {
       location: opt('All locations', uniqueSorted(allJobs.map((j) => city(j.location)))),
       company: opt('All companies', uniqueSorted(allJobs.map((j) => j.company))),
-      jobType: opt('All types', types.length ? types : DEFAULT_JOB_TYPES),
-      source: SOURCE_OPTIONS,
+      jobType: opt('All types', types.length ? types : DEFAULT_JOB_TYPES, typeLabel),
+      source: opt('All sources', uniqueSorted(allJobs.map((j) => j.source)), (v) => SOURCE_LABELS[v] ?? v),
       postedWithin: POSTED_OPTIONS.map((o) => ({ value: o.value, label: o.label })),
     } satisfies Record<FilterKey, SelectOption[]>;
   }, [allJobs]);
@@ -147,132 +141,117 @@ export function JobsPage() {
   const start = (page?.number ?? 0) * perPage;
   const showSkeleton = result.status === 'loading' && !page;
 
-  const resultsTitle = result.status === 'loading' ? 'Loading jobs…'
-    : result.status === 'error' ? 'Jobs'
-      : `${total.toLocaleString('en-IN')} job${total === 1 ? '' : 's'}`;
+  const freshCount = allJobs.filter(isFreshJob).length;
+  const resultsTitle = result.status === 'loading' && !page ? 'Loading roles…'
+    : result.status === 'error' ? 'Roles'
+      : `${total.toLocaleString('en-IN')} role${total === 1 ? '' : 's'}`;
 
   return (
     <div className="page">
-      <div>
-        <h1 className="page-title">Jobs</h1>
-        <p className="page-desc">Discover and analyze opportunities from multiple sources.</p>
+      <div className="page-head">
+        <div>
+          <h1 className="page-title">Jobs</h1>
+          <p className="page-desc">
+            {allJobs.length
+              ? <>Every role stored from your sources, newest first. <strong>{freshCount} posted in the last 24 hours.</strong></>
+              : 'Every role stored from your sources, newest first.'}
+          </p>
+        </div>
       </div>
 
-      <section aria-label="Search and filters" className="card">
-        <form role="search" className="search-form" onSubmit={onSearch}>
+      <section aria-label="Search and filters" className="panel toolbar">
+        <form role="search" className="toolbar-search" onSubmit={onSearch}>
           <div className="input-wrap">
-            <Icon name="search" size={17} className="input-icon" />
+            <Icon name="search" size={16} className="input-icon" />
             <input
               aria-label="Search jobs by title"
-              className="input has-icon"
+              className="input input-sm has-icon"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search jobs by title, e.g. backend engineer"
+              placeholder="Job title, e.g. backend engineer"
             />
           </div>
+          <button type="submit" className="btn btn-primary">Search</button>
           <button
             type="button"
-            className="btn btn-lg filters-btn"
+            className="btn btn-outline filters-toggle"
             aria-expanded={filtersOpen}
             aria-controls="ji-filters"
             onClick={() => setFiltersOpen((o) => !o)}
           >
-            <Icon name="filter" size={15} />Filters
-            {activeFilterCount > 0 && <span className="count-dot">{activeFilterCount}</span>}
+            <Icon name="filter" size={15} />Filters{activeFilterCount > 0 && <span className="num">· {activeFilterCount}</span>}
           </button>
-          <button type="submit" className="btn btn-lg btn-primary" style={{ padding: '0 18px' }}>Search</button>
         </form>
 
-        {filtersOpen && (
-          <div id="ji-filters" className="filters-grid">
-            {filterKeys.map((k) => (
-              <div key={k} className="field">
-                <label htmlFor={`ji-f-${k}`} className="field-label-sm">{k === 'postedWithin' ? 'Posted within' : FILTER_LABELS[k]}</label>
-                <Select
-                  id={`ji-f-${k}`}
-                  value={filters[k]}
-                  options={withCurrent(k)}
-                  highlight={!!filters[k]}
-                  onChange={(v) => updateParams({ [k]: v })}
-                />
-              </div>
-            ))}
-          </div>
-        )}
-
-        {chips.length > 0 && (
-          <div className="chips">
-            {chips.map((c) => (
-              <span key={c.key} className="chip">
-                {c.label}
-                <button type="button" aria-label={`Remove ${c.key === 'title' ? 'keyword' : FILTER_LABELS[c.key]} filter`} onClick={() => {
-                  if (c.key === 'title') setQuery('');
-                  updateParams({ [c.key]: '' });
-                }}>
-                  <Icon name="x" size={12} strokeWidth={2.25} />
-                </button>
-              </span>
-            ))}
-            <button type="button" className="clear-all" onClick={clearAll}>Clear all</button>
-          </div>
-        )}
+        <div id="ji-filters" className={`toolbar-filters${filtersOpen ? ' is-open' : ''}`}>
+          {filterKeys.map((k) => (
+            <Select
+              key={k}
+              id={`ji-f-${k}`}
+              aria-label={FILTER_LABELS[k]}
+              value={filters[k]}
+              options={withCurrent(k)}
+              highlight={!!filters[k]}
+              onChange={(v) => updateParams({ [k]: v })}
+            />
+          ))}
+          {chips.length > 0 && <button type="button" className="text-btn is-muted clear-all" onClick={clearAll}>Clear all</button>}
+        </div>
       </section>
 
-      <div className="results-bar">
-        <div className="results-title" aria-live="polite">{resultsTitle}</div>
-        <code className="code-chip" title="Request this view maps to">GET /api/jobs/search?{requestKey}</code>
-      </div>
-
-      {showSkeleton && <JobListSkeleton />}
-
-      {result.status === 'error' && (
-        <ErrorState title="Unable to load jobs." message={result.message} onRetry={() => setRetryKey((k) => k + 1)} />
-      )}
-
-      {page && visible.length === 0 && result.status === 'success' && (
-        <EmptyState
-          icon="search"
-          title="No jobs found"
-          action={<button type="button" className="btn btn-md" onClick={clearAll}>Clear filters</button>}
-        >
-          Try changing your search or filters.
-        </EmptyState>
-      )}
-
-      {page && visible.length > 0 && (
-        <>
-          <div className="job-list" style={{ opacity: result.status === 'loading' ? 0.6 : 1, transition: 'opacity .15s ease' }} aria-busy={result.status === 'loading'}>
-            {visible.map((job) => <JobCard key={job.id} job={job} />)}
+      <section aria-labelledby="ji-results" className="panel panel-clip">
+        <div className="panel-head">
+          <div>
+            <h2 id="ji-results" className="panel-title" aria-live="polite">{resultsTitle}</h2>
+            <div className="panel-sub">{chips.length ? chips.map((c) => c.label).join(' · ') : 'All roles, newest first'}</div>
           </div>
-          <nav aria-label="Pagination" className="pagination">
-            <span className="pagination-info">
-              Showing <strong>{start + 1}–{Math.min(start + perPage, total)}</strong> of <strong>{total.toLocaleString('en-IN')}</strong> jobs
-            </span>
-            <div className="pager">
-              <button type="button" className="btn btn-sm" disabled={pageNum <= 1} onClick={() => goToPage(pageNum - 1)} aria-label="Previous page">
-                <Icon name="chevLeft" size={14} strokeWidth={2} />Prev
-              </button>
-              {pageWindow(Math.min(pageNum, totalPages), totalPages).map((p, i) => p === null
-                ? <span key={`gap-${i}`} className="page-gap">…</span>
-                : (
-                  <button
-                    key={p}
-                    type="button"
-                    className="page-num"
-                    aria-current={p === pageNum ? 'page' : undefined}
-                    aria-label={`Page ${p}`}
-                    onClick={() => goToPage(p)}
-                  >
-                    {p}
-                  </button>
-                ))}
-              <button type="button" className="btn btn-sm" disabled={pageNum >= totalPages} onClick={() => goToPage(pageNum + 1)} aria-label="Next page">
-                Next<Icon name="chevRight" size={14} strokeWidth={2} />
-              </button>
+        </div>
+
+        {showSkeleton && <JobTableSkeleton rows={6} />}
+
+        {result.status === 'error' && (
+          <ErrorLine message={`Couldn't load jobs. ${result.message}`} onRetry={() => setRetryKey((k) => k + 1)} />
+        )}
+
+        {page && visible.length === 0 && result.status === 'success' && (
+          <EmptyBlock title="No roles match" action={<button type="button" className="btn" onClick={clearAll}>Clear filters</button>}>
+            Nothing stored matches {chips.length ? 'these filters' : 'yet'}. Widen the search or clear a filter.
+          </EmptyBlock>
+        )}
+
+        {page && visible.length > 0 && (
+          <>
+            <div style={{ opacity: result.status === 'loading' ? 0.6 : 1, transition: 'opacity .15s ease' }} aria-busy={result.status === 'loading'}>
+              <JobTable jobs={visible} caption={resultsTitle} />
             </div>
-          </nav>
-        </>
-      )}
+            <nav aria-label="Pagination" className="panel-foot pagination">
+              <span className="num">{start + 1}–{Math.min(start + perPage, total)} of {total.toLocaleString('en-IN')}</span>
+              <div className="pager">
+                <button type="button" className="icon-btn" disabled={pageNum <= 1} onClick={() => goToPage(pageNum - 1)} aria-label="Previous page">
+                  <Icon name="chevLeft" size={16} />
+                </button>
+                {pageWindow(Math.min(pageNum, totalPages), totalPages).map((p, i) => p === null
+                  ? <span key={`gap-${i}`} className="page-gap">…</span>
+                  : (
+                    <button
+                      key={p}
+                      type="button"
+                      className="page-num num"
+                      aria-current={p === pageNum ? 'page' : undefined}
+                      aria-label={`Page ${p}`}
+                      onClick={() => goToPage(p)}
+                    >
+                      {p}
+                    </button>
+                  ))}
+                <button type="button" className="icon-btn" disabled={pageNum >= totalPages} onClick={() => goToPage(pageNum + 1)} aria-label="Next page">
+                  <Icon name="chevRight" size={16} />
+                </button>
+              </div>
+            </nav>
+          </>
+        )}
+      </section>
     </div>
   );
 }
