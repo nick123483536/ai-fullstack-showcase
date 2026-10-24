@@ -3,7 +3,7 @@ package com.nikhil.jobintelligence.specification;
 import org.springframework.data.jpa.domain.Specification;
 
 import com.nikhil.jobintelligence.entity.Job;
-
+import java.time.LocalDateTime;
 public class JobSpecification {
 
     public static Specification<Job> hasTitle(String title) {
@@ -35,6 +35,14 @@ public class JobSpecification {
                 criteriaBuilder.like(
                         criteriaBuilder.lower(root.get("jobType")),
                         "%" + jobType.toLowerCase() + "%"
+                );
+    }
+    
+    public static Specification<Job> postedAfter(LocalDateTime time) {
+        return (root, query, criteriaBuilder) ->
+                criteriaBuilder.greaterThanOrEqualTo(
+                        root.get("postedAt"),
+                        time
                 );
     }
 }

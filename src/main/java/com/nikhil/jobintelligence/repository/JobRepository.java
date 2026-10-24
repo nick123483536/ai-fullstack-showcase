@@ -1,6 +1,7 @@
 package com.nikhil.jobintelligence.repository;
 
 import java.util.List;
+import java.util.Optional;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
@@ -16,4 +17,6 @@ public interface JobRepository extends JpaRepository<Job,Long>,JpaSpecificationE
 	List<Job> findByCompanyContainingIgnoreCase(String company);
 
 	List<Job> findByJobTypeContainingIgnoreCase(String jobType);
+
+    Optional<Job> findByJobUrl(String jobUrl);
 }

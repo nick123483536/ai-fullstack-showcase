@@ -1,5 +1,7 @@
 package com.nikhil.jobintelligence.entity;
 
+import java.time.LocalDateTime;
+
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.Id;
@@ -29,6 +31,16 @@ public class Job {
 
 	@NotBlank(message = "Job URL is required")
 	private String jobUrl;
+	
+	private LocalDateTime postedAt;
+
+	public LocalDateTime getPostedAt() {
+		return postedAt;
+	}
+
+	public void setPostedAt(LocalDateTime postedAt) {
+		this.postedAt = postedAt;
+	}
 
 	public Long getId() {
 		return id;
@@ -89,9 +101,8 @@ public class Job {
 	@Override
 	public String toString() {
 		return "Job [id=" + id + ", title=" + title + ", company=" + company + ", location=" + location + ", jobType="
-				+ jobType + ", source=" + source + ", jobUrl=" + jobUrl + ", getId()=" + getId() + ", getTitle()="
-				+ getTitle() + ", getCompany()=" + getCompany() + ", getLocation()=" + getLocation() + ", getJobType()="
-				+ getJobType() + ", getSource()=" + getSource() + ", getJobUrl()=" + getJobUrl() + ", getClass()="
-				+ getClass() + ", hashCode()=" + hashCode() + ", toString()=" + super.toString() + "]";
+				+ jobType + ", source=" + source + ", jobUrl=" + jobUrl + ", postedAt=" + postedAt + "]";
 	}
+
+	
 }
