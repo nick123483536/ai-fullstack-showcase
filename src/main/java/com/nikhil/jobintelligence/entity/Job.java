@@ -33,6 +33,8 @@ public class Job {
 	private String jobUrl;
 	
 	private LocalDateTime postedAt;
+	private String externalId;
+
 
 	public LocalDateTime getPostedAt() {
 		return postedAt;
@@ -96,6 +98,15 @@ public class Job {
 
 	public void setJobUrl(String jobUrl) {
 		this.jobUrl = jobUrl;
+	}
+	
+
+	public String getExternalId() {
+		return externalId;
+	}
+
+	public void setExternalId(String externalId) {
+		this.externalId = externalId;
 	}
 
 	@Override

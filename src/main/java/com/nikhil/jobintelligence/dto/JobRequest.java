@@ -26,6 +26,9 @@ public class JobRequest {
 	
 	private LocalDateTime postedAt;
 
+	private String externalId;
+	
+
 	public String getTitle() {
 		return title;
 	}
@@ -80,6 +83,14 @@ public class JobRequest {
 
 	public void setPostedAt(LocalDateTime postedAt) {
 		this.postedAt = postedAt;
+	}
+
+	public String getExternalId() {
+		return externalId;
+	}
+
+	public void setExternalId(String externalId) {
+		this.externalId = externalId;
 	}
 	
 	

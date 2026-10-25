@@ -122,6 +122,7 @@ public class AdzunaJobSourceClient implements JobSourceClient {
         request.setSource(getSourceName());
         request.setJobUrl(job.getRedirectUrl());
         request.setPostedAt(parseDate(job.getCreated()));
+        request.setExternalId(job.getId());
         return request;
     }
 

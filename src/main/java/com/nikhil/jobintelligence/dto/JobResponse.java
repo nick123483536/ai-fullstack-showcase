@@ -12,8 +12,17 @@ public class JobResponse {
     private String source;
     private String jobUrl;
     private LocalDateTime postedAt;
+    private String externalId;
 
-    public Long getId() {
+    public String getExternalId() {
+		return externalId;
+	}
+
+	public void setExternalId(String externalId) {
+		this.externalId = externalId;
+	}
+
+	public Long getId() {
         return id;
     }
 

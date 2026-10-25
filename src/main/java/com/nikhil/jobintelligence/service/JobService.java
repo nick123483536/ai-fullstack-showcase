@@ -39,6 +39,7 @@ public class JobService {
 		job.setSource(request.getSource());
 		job.setJobUrl(request.getJobUrl());
 		job.setPostedAt(request.getPostedAt());
+		job.setExternalId(request.getExternalId());
 
 		Job savedJob = jobRepository.save(job);
 
@@ -150,6 +151,7 @@ public class JobService {
 		response.setSource(job.getSource());
 		response.setJobUrl(job.getJobUrl());
 		response.setPostedAt(job.getPostedAt());
+		response.setExternalId(job.getExternalId());
 
 		return response;
 	}

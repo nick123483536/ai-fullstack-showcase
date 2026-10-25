@@ -19,4 +19,6 @@ public interface JobRepository extends JpaRepository<Job,Long>,JpaSpecificationE
 	List<Job> findByJobTypeContainingIgnoreCase(String jobType);
 
     Optional<Job> findByJobUrl(String jobUrl);
+    Optional<Job> findBySourceAndExternalId(String source, String externalId);
+
 }

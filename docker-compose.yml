@@ -36,6 +36,7 @@ services:
       JWT_SECRET: ${JWT_SECRET}
       ADZUNA_APP_ID: ${ADZUNA_APP_ID}
       ADZUNA_APP_KEY: ${ADZUNA_APP_KEY}
+      TZ: "Asia/Kolkata"
     depends_on:
       postgres:
         condition: service_healthy
